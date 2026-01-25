@@ -20,6 +20,7 @@ import HomeScreen from './src/screens/HomeScreen';
 import ResultScreen from './src/screens/ResultScreen';
 import HistoryScreen from './src/screens/HistoryScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
+import PaywallScreen from './src/screens/PaywallScreen';
 
 // Prevent native splash screen from auto-hiding
 SplashScreenExpo.preventAutoHideAsync();
@@ -32,7 +33,8 @@ type AppScreen =
   | 'home'
   | 'result'
   | 'history'
-  | 'profile';
+  | 'profile'
+  | 'paywall';
 
 function AppContent() {
   const { state, dispatch, completeOnboarding } = useApp();
@@ -129,6 +131,7 @@ function AppContent() {
   const navigateToHistory = () => setCurrentScreen('history');
   const navigateToProfile = () => setCurrentScreen('profile');
   const navigateToHome = () => setCurrentScreen('home');
+  const navigateToPaywall = () => setCurrentScreen('paywall');
 
   // Render based on current screen
   const renderScreen = () => {
@@ -188,7 +191,6 @@ function AppContent() {
             />
           </Animated.View>
         );
-
       case 'home':
         return (
           <Animated.View 
@@ -201,6 +203,7 @@ function AppContent() {
               onNavigateToResult={navigateToResult}
               onNavigateToHistory={navigateToHistory}
               onNavigateToProfile={navigateToProfile}
+              onNavigateToPaywall={navigateToPaywall}
             />
           </Animated.View>
         );
@@ -248,6 +251,25 @@ function AppContent() {
           >
             <ProfileScreen
               onBack={navigateToHome}
+              onNavigateToPaywall={navigateToPaywall}
+            />
+          </Animated.View>
+        );
+
+      case 'paywall':
+        return (
+          <Animated.View 
+            key="paywall" 
+            style={StyleSheet.absoluteFill}
+            entering={FadeIn.duration(400)}
+            exiting={FadeOut.duration(300)}
+          >
+            <PaywallScreen
+              onClose={() => setCurrentScreen('home')}
+              onRestore={() => {
+                // TODO: Implement restore logic
+                console.log('Restore purchases');
+              }}
             />
           </Animated.View>
         );

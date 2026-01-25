@@ -15,6 +15,10 @@ export interface IUser extends Document {
   providerId?: string;
   factChecksCount: number;
   isPremium: boolean;
+  plan: 'free' | 'monthly' | 'yearly';
+  subscriptionStatus: 'active' | 'past_due' | 'canceled' | 'none';
+  dailyRequestsCount: number;
+  lastRequestDate: Date;
   premiumExpiresAt?: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -56,6 +60,24 @@ const UserSchema = new Schema<IUser>(
     isPremium: {
       type: Boolean,
       default: false,
+    },
+    plan: {
+      type: String,
+      enum: ['free', 'monthly', 'yearly'],
+      default: 'free',
+    },
+    subscriptionStatus: {
+      type: String,
+      enum: ['active', 'past_due', 'canceled', 'none'],
+      default: 'none',
+    },
+    dailyRequestsCount: {
+      type: Number,
+      default: 0,
+    },
+    lastRequestDate: {
+      type: Date,
+      default: Date.now,
     },
     premiumExpiresAt: {
       type: Date,

@@ -16,11 +16,12 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.facts.app",
+      "bundleIdentifier": "com.finea.facts",
       "buildNumber": "1",
       "infoPlist": {
         "NSCameraUsageDescription": "FACTS utilise la caméra pour capturer des images à vérifier.",
-        "NSPhotoLibraryUsageDescription": "FACTS accède à votre galerie pour sélectionner des images à vérifier."
+        "NSPhotoLibraryUsageDescription": "FACTS accède à votre galerie pour sélectionner des images à vérifier.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -28,11 +29,12 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#000000"
       },
-      "package": "com.facts.app",
+      "package": "com.finea.facts",
       "versionCode": 1,
       "permissions": [
         "android.permission.CAMERA",
-        "android.permission.READ_EXTERNAL_STORAGE"
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -50,7 +52,7 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "facts-app"
+        "projectId": "3668efba-991e-4f9a-adb6-fc0700b53136"
       }
     }
   }

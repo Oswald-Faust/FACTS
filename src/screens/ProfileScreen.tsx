@@ -23,19 +23,19 @@ import { useApp, useTheme } from '../contexts/AppContext';
 
 interface ProfileScreenProps {
   onBack: () => void;
+  onNavigateToPaywall: () => void;
 }
 
-export default function ProfileScreen({ onBack }: ProfileScreenProps) {
+export default function ProfileScreen({ onBack, onNavigateToPaywall }: ProfileScreenProps) {
   const insets = useSafeAreaInsets();
   const theme = useTheme();
   const isDark = theme === 'dark';
   const [isUploading, setIsUploading] = React.useState(false);
-  const { state, logout, setTheme, setUser } = useApp(); // Need setUser to update context
+  const { state, logout, setTheme, setUser } = useApp();
   const { user } = state;
 
   const handlePickImage = async () => {
     try {
-      // No permissions request is necessary for launching the image library
       let result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
@@ -55,7 +55,6 @@ export default function ProfileScreen({ onBack }: ProfileScreenProps) {
     setIsUploading(true);
     try {
       const formData = new FormData();
-      // infer filename and type
       const filename = uri.split('/').pop() || 'avatar.jpg';
       const match = /\.(\w+)$/.exec(filename);
       const type = match ? `image/${match[1]}` : 'image/jpeg';
@@ -68,7 +67,6 @@ export default function ProfileScreen({ onBack }: ProfileScreenProps) {
 
       const response = await ApiService.uploadAvatar(formData);
       
-      // Update Context
       if (response.user) {
          setUser(response.user);
       }
@@ -92,7 +90,6 @@ export default function ProfileScreen({ onBack }: ProfileScreenProps) {
           style: "destructive", 
           onPress: async () => {
             await logout();
-            // La navigation sera gérée par App.tsx via le state change
           }
         }
       ]
@@ -214,6 +211,38 @@ export default function ProfileScreen({ onBack }: ProfileScreenProps) {
                 </Text>
              </View>
           </View>
+
+          {/* Premium Banner */}
+          {!user?.isPremium && (
+            <TouchableOpacity 
+              onPress={onNavigateToPaywall}
+              activeOpacity={0.9}
+              style={[
+                styles.premiumBanner,
+                { 
+                  marginTop: Spacing.xl,
+                }
+              ]}
+            >
+              <LinearGradient
+                colors={['#FFD700', '#FFA500']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.premiumGradient}
+              >
+                <View style={styles.premiumContent}>
+                  <View style={styles.premiumIcon}>
+                    <Ionicons name="diamond" size={24} color="#FFF" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.premiumTitle}>Passer à FACTS+</Text>
+                    <Text style={styles.premiumSubtitle}>Zéro limites, Analyse IA Visuelle, Deep Search.</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={24} color="#FFF" />
+                </View>
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
         </Animated.View>
 
         {/* Settings Section */}
@@ -445,5 +474,36 @@ const styles = StyleSheet.create({
     ...Typography.caption2,
     textAlign: 'center',
     marginTop: Spacing.lg,
+  },
+  premiumBanner: {
+    borderRadius: BorderRadius.xl,
+    overflow: 'hidden',
+    ...Shadows.md,
+  },
+  premiumGradient: {
+    padding: Spacing.lg,
+  },
+  premiumContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  premiumIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  premiumTitle: {
+    ...Typography.headline,
+    fontWeight: '800', // Extra bold
+    color: '#FFF',
+  },
+  premiumSubtitle: {
+    ...Typography.caption2,
+    color: 'rgba(255,255,255,0.9)',
+    marginTop: 2,
   },
 });

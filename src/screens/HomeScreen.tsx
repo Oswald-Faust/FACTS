@@ -32,7 +32,8 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../constants/theme';
 import { useApp, useTheme } from '../contexts/AppContext';
-import { verifyClaimWithGemini, verifyImageWithGemini } from '../services/gemini';
+import ApiService, { ApiError } from '../services/api';
+import * as Storage from '../services/storage';
 import SoftBackground from '../components/SoftBackground';
 
 const { width } = Dimensions.get('window');
@@ -41,13 +42,19 @@ interface HomeScreenProps {
   onNavigateToResult: () => void;
   onNavigateToHistory: () => void;
   onNavigateToProfile: () => void;
+  onNavigateToPaywall: () => void;
 }
 
-export default function HomeScreen({ onNavigateToResult, onNavigateToHistory, onNavigateToProfile }: HomeScreenProps) {
+export default function HomeScreen({ 
+  onNavigateToResult, 
+  onNavigateToHistory, 
+  onNavigateToProfile,
+  onNavigateToPaywall 
+}: HomeScreenProps) {
   const insets = useSafeAreaInsets();
   const theme = useTheme();
   const isDark = theme === 'dark';
-  const { addFactCheck, dispatch, state: { history } } = useApp();
+  const { dispatch, state: { history } } = useApp();
 
   const [claim, setClaim] = useState('');
   const [imageUri, setImageUri] = useState<string | null>(null);
@@ -133,15 +140,15 @@ export default function HomeScreen({ onNavigateToResult, onNavigateToHistory, on
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
   
       try {
-        let result;
-        // If it's a remote URL image (http) or local file (file://)
-        if (imageUri) {
-          result = await verifyImageWithGemini(imageUri, imageContext || claim);
-        } else {
-          result = await verifyClaimWithGemini(claim);
-        }
-  
-        await addFactCheck(result);
+        // Use backend verification (enforces quota)
+        const result = await ApiService.verifyFactCheck(
+          imageUri ? (imageContext || claim || 'Analyse d\'image') : claim, 
+          imageUri || undefined
+        );
+        
+        // Manually update state and local storage (avoiding double API call from addFactCheck)
+        dispatch({ type: 'ADD_FACT_CHECK', payload: result });
+        await Storage.saveFactCheck(result);
         
         // Reset and Navigate
         setClaim('');
@@ -149,10 +156,16 @@ export default function HomeScreen({ onNavigateToResult, onNavigateToHistory, on
         setImageContext('');
         contentOpacity.value = withTiming(1);
         onNavigateToResult();
-      } catch (error) {
+      } catch (error: any) {
         contentOpacity.value = withTiming(1);
         setIsLoading(false);
-        Alert.alert('Erreur', 'Impossible de vérifier pour le moment.');
+        
+        if (error instanceof ApiError && error.status === 403) {
+            // Quota exceeded
+            onNavigateToPaywall();
+        } else {
+            Alert.alert('Erreur', error.message || 'Impossible de vérifier pour le moment.');
+        }
       }
     };
 

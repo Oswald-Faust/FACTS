@@ -8,7 +8,17 @@ import * as Storage from './storage';
 import { ApiResponse, User, FactCheckResult, HistoryItem } from '../types';
 
 // Get API URL from environment
-const API_URL = process.env.EXPO_PUBLIC_API_URL || (__DEV__ ? 'http://localhost:3000' : 'https://site--facts--vmdg6rghy9dk.code.run');
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
+
+// Custom API Error
+export class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+    this.name = 'ApiError';
+  }
+}
 
 class ApiService {
   private static instance: ApiService;
@@ -63,7 +73,7 @@ class ApiService {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || data.message || 'Une erreur est survenue');
+        throw new ApiError(data.error || data.message || 'Une erreur est survenue', response.status);
       }
 
       return data.data;
@@ -119,6 +129,14 @@ class ApiService {
     }
   }
 
+  public async upgradeToPremium() {
+    const data = await this.request<{ user: User }>('/users/premium/upgrade', { method: 'POST' });
+    if (data.user) {
+        await Storage.saveUser(data.user);
+    }
+    return data.user;
+  }
+
   // Fact Check Methods
   public async getHistory(page = 1, limit = 20) {
     const data = await this.request<{ factChecks: FactCheckResult[], pagination: any }>(
@@ -130,6 +148,50 @@ class ApiService {
       factCheck: fc,
       savedAt: new Date(fc.createdAt),
     } as HistoryItem));
+  }
+
+  public async verifyFactCheck(claim: string, imageUri?: string) {
+    // If imageUri is local file (starts with file://), use FormData
+    if (imageUri && imageUri.startsWith('file://')) {
+       // FormData upload
+       const url = `${API_URL}/api/fact-checks/verify`;
+       const headers: any = await this.getHeaders();
+       delete headers['Content-Type']; 
+
+       const fd = new FormData();
+       fd.append('claim', claim);
+       
+       const filename = imageUri.split('/').pop() || 'image.jpg';
+       const match = /\.(\w+)$/.exec(filename);
+       const type = match ? `image/${match[1]}` : `image/jpeg`;
+       
+       fd.append('image', { uri: imageUri, name: filename, type } as any);
+
+       try {
+         const response = await fetch(url, {
+           method: 'POST',
+           headers,
+           body: fd,
+         });
+
+         const data = await response.json();
+
+         if (!response.ok) {
+           throw new ApiError(data.error || data.message || 'Vérification échouée', response.status);
+         }
+         return data.data.factCheck;
+       } catch (error) {
+         console.error('Verify Upload Error:', error);
+         throw error;
+       }
+    } else {
+       // JSON request for text or remote URL
+       const data = await this.request<{ factCheck: FactCheckResult }>('/fact-checks/verify', {
+         method: 'POST',
+         body: JSON.stringify({ claim, imageUrl: imageUri }),
+       });
+       return data.factCheck;
+    }
   }
 
   public async saveFactCheck(factCheck: Omit<FactCheckResult, 'id' | 'createdAt' | 'processingTimeMs'> & { processingTimeMs: number }) {
@@ -163,7 +225,7 @@ class ApiService {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || data.message || 'Upload failed');
+        throw new ApiError(data.error || data.message || 'Upload failed', response.status);
       }
 
       // Update local storage if user is returned

@@ -158,7 +158,7 @@ export default function EmailAuthScreen({ onBack, onSuccess, initialMode = 'sign
   const getSubtitle = () => {
     switch (mode) {
       case 'email':
-        return 'Nous vous enverrons un code pour vérifier votre connexion.';
+        return "Entrez votre adresse email pour continuer.";
       case 'password':
         return `Connectez-vous à ${email}`;
       case 'signup':

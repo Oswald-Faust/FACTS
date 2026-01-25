@@ -5,7 +5,7 @@
 import { Router, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { FactCheck, User } from '../models';
-import { authenticate, AuthRequest, createError } from '../middleware';
+import { authenticate, AuthRequest, createError, checkQuota } from '../middleware';
 
 const router = Router();
 
@@ -102,11 +102,12 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response, next: N
   }
 });
 
+
 /**
  * POST /api/fact-checks
  * Create a new fact-check (save result)
  */
-router.post('/', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/', authenticate, checkQuota, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const data = createFactCheckSchema.parse(req.body);
 
@@ -216,6 +217,105 @@ router.get('/stats/summary', authenticate, async (req: AuthRequest, res: Respons
       },
     });
   } catch (error) {
+    next(error);
+  }
+});
+
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
+import { verifyWithGemini } from '../services/gemini';
+
+// Multer Config
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = path.join(__dirname, '../../uploads/fact-checks');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    cb(null, `fact-${(req as any).userId}-${uniqueSuffix}${path.extname(file.originalname)}`);
+  },
+});
+
+const upload = multer({ 
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /jpeg|jpg|png|gif|webp/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+    if (extname && mimetype) {
+      return cb(null, true);
+    }
+    cb(new Error('Seules les images sont autorisées!'));
+  },
+});
+
+/**
+ * POST /api/fact-checks/verify
+ * Verify a claim or image using Gemini (Server-Side)
+ * Enforces Quota
+ */
+router.post('/verify', authenticate, checkQuota, upload.single('image'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { claim, imageUrl } = req.body;
+    let imagePath: string | undefined = undefined;
+
+    // Determine image location
+    if (req.file) {
+      imagePath = req.file.path;
+    } else if (imageUrl) {
+      imagePath = imageUrl;
+    }
+
+    if (!claim && !imagePath) {
+      throw createError('Veuillez fournir une affirmation ou une image à vérifier.', 400);
+    }
+
+    // Call Gemini Service
+    const startTime = Date.now();
+    const analysisResult = await verifyWithGemini(claim || '', imagePath);
+    const processingTime = Date.now() - startTime;
+
+    // Construct FactCheck document
+    // If it was a remote URL, we save that. If local file, we construct a relative URL.
+    let savedImageUrl = undefined;
+    if (req.file) {
+      const baseUrl = process.env.API_URL || 'http://localhost:3000';
+      savedImageUrl = `${baseUrl}/uploads/fact-checks/${req.file.filename}`;
+    } else if (imageUrl) {
+      savedImageUrl = imageUrl;
+    }
+
+    const factCheck = new FactCheck({
+      userId: req.userId,
+      claim: claim || (imagePath ? 'Analyse d\'image' : 'Verification'),
+      ...analysisResult,
+      imageUrl: savedImageUrl,
+      processingTimeMs: processingTime,
+    });
+
+    await factCheck.save();
+
+    // Update user stats
+    await User.findByIdAndUpdate(req.userId, {
+      $inc: { factChecksCount: 1 },
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Vérification terminée',
+      data: {
+        factCheck: factCheck.toJSON(),
+      },
+    });
+
+  } catch (error) {
+     // If error, we might want to refund quota? For now, simpler to leave it.
     next(error);
   }
 });
