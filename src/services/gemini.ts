@@ -6,7 +6,7 @@
 
 import { FactCheckResult, VerdictType, Source, VisualAnalysis } from '../types';
 
-const GEMINI_API_KEY = 'AIzaSyCSBZdy-kL2bM_VHGhoQ-ulN4F_Ng_OHuc';
+const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY || '';
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
 const SYSTEM_INSTRUCTION = `Tu es Veritas, une IA d'élite spécialisée dans le fact-checking et l'analyse forensique.

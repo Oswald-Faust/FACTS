@@ -1,7 +1,7 @@
 import { VerdictType, IFactCheck, ISource, IVisualAnalysis } from '../models/FactCheck';
 import fs from 'fs/promises';
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || 'AIzaSyCSBZdy-kL2bM_VHGhoQ-ulN4F_Ng_OHuc';
+
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
 const SYSTEM_INSTRUCTION = `Tu es Veritas, une IA d'élite spécialisée dans le fact-checking et l'analyse forensique.
@@ -223,7 +223,13 @@ export async function verifyWithGemini(claim: string, imagePath?: string): Promi
         });
     }
 
-    const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+        throw new Error('GEMINI_API_KEY is not defined in environment variables');
+    }
+    console.log('DEBUG: Using Gemini API Key:', apiKey.substring(0, 10) + '...', 'Length:', apiKey.length);
+
+    const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(requestBody),
