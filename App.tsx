@@ -21,6 +21,7 @@ import ResultScreen from './src/screens/ResultScreen';
 import HistoryScreen from './src/screens/HistoryScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import PaywallScreen from './src/screens/PaywallScreen';
+import NewsSuggestionsScreen from './src/screens/NewsSuggestionsScreen';
 
 // Prevent native splash screen from auto-hiding
 SplashScreenExpo.preventAutoHideAsync();
@@ -34,12 +35,17 @@ type AppScreen =
   | 'result'
   | 'history'
   | 'profile'
-  | 'paywall';
+  | 'paywall'
+  | 'newsSuggestions';
+
+import ApiService from './src/services/api';
+import * as Storage from './src/services/storage';
 
 function AppContent() {
-  const { state, dispatch, completeOnboarding } = useApp();
+  const { state, dispatch, completeOnboarding, setUser } = useApp();
   const [currentScreen, setCurrentScreen] = useState<AppScreen>('splash');
   const [emailAuthMode, setEmailAuthMode] = useState<'login' | 'signup'>('signup');
+  const [isSplashAnimationDone, setIsSplashAnimationDone] = useState(false);
 
   // Hide native splash when app is ready
   useEffect(() => {
@@ -48,23 +54,22 @@ function AppContent() {
     }
   }, [state.isLoading]);
 
-  // Determine initial screen after loading
+  // Determine initial screen after loading AND splash animation
   useEffect(() => {
-    if (!state.isLoading && currentScreen === 'splash') {
-      // If splash animation hasn't started yet, keep it
-      // The SplashScreen component will call onFinish when done
+    if (!state.isLoading && isSplashAnimationDone && currentScreen === 'splash') {
+      if (state.isOnboarded && state.user) {
+        setCurrentScreen('home');
+      } else if (state.isOnboarded) {
+        setCurrentScreen('auth');
+      } else {
+        setCurrentScreen('welcome');
+      }
     }
-  }, [state.isLoading]);
+  }, [state.isLoading, isSplashAnimationDone, currentScreen, state.isOnboarded, state.user]);
 
   // Handle splash screen finish
   const handleSplashFinish = () => {
-    if (state.isOnboarded && state.user) {
-      setCurrentScreen('home');
-    } else if (state.isOnboarded) {
-      setCurrentScreen('auth');
-    } else {
-      setCurrentScreen('welcome');
-    }
+    setIsSplashAnimationDone(true);
   };
 
   // Handle welcome screen complete
@@ -74,33 +79,41 @@ function AppContent() {
 
   // Handle auth options
   const handleContinueWithApple = async () => {
-    // TODO: Implement Apple Sign In
-    // For now, simulate success
-    const mockUser = { 
+    // Mimic API login response
+    const mockUser: User = { 
       id: 'apple-user-' + Date.now(),
       email: 'user@apple.com',
-      name: 'Apple User',
+      displayName: 'Utilisateur Apple',
       createdAt: new Date(),
       factChecksCount: 0,
       isPremium: false,
     };
-    dispatch({ type: 'SET_USER', payload: mockUser });
+    const mockToken = 'mock-apple-token-' + Date.now();
+
+    await setUser(mockUser); // Saves to storage and context
+    ApiService.setToken(mockToken);
+    await Storage.saveAuthToken(mockToken);
+    
     await completeOnboarding();
     setCurrentScreen('home');
   };
 
   const handleContinueWithGoogle = async () => {
-    // TODO: Implement Google Sign In
-    // For now, simulate success
-    const mockUser = { 
+    // Mimic API login response
+    const mockUser: User = { 
       id: 'google-user-' + Date.now(),
       email: 'user@gmail.com',
-      name: 'Google User',
+      displayName: 'Utilisateur Google',
       createdAt: new Date(),
       factChecksCount: 0,
       isPremium: false,
     };
-    dispatch({ type: 'SET_USER', payload: mockUser });
+    const mockToken = 'mock-google-token-' + Date.now();
+
+    await setUser(mockUser); // Saves to storage and context
+    ApiService.setToken(mockToken);
+    await Storage.saveAuthToken(mockToken);
+
     await completeOnboarding();
     setCurrentScreen('home');
   };
@@ -129,6 +142,7 @@ function AppContent() {
   // Navigation handlers
   const navigateToResult = () => setCurrentScreen('result');
   const navigateToHistory = () => setCurrentScreen('history');
+  const navigateToNews = () => setCurrentScreen('newsSuggestions');
   const navigateToProfile = () => setCurrentScreen('profile');
   const navigateToHome = () => setCurrentScreen('home');
   const navigateToPaywall = () => setCurrentScreen('paywall');
@@ -202,6 +216,7 @@ function AppContent() {
             <HomeScreen
               onNavigateToResult={navigateToResult}
               onNavigateToHistory={navigateToHistory}
+              onNavigateToNews={navigateToNews}
               onNavigateToProfile={navigateToProfile}
               onNavigateToPaywall={navigateToPaywall}
             />
@@ -252,6 +267,21 @@ function AppContent() {
             <ProfileScreen
               onBack={navigateToHome}
               onNavigateToPaywall={navigateToPaywall}
+            />
+          </Animated.View>
+        );
+
+      case 'newsSuggestions':
+        return (
+          <Animated.View 
+            key="newsSuggestions" 
+            style={StyleSheet.absoluteFill}
+            entering={FadeIn.duration(400)}
+            exiting={FadeOut.duration(300)}
+          >
+            <NewsSuggestionsScreen
+              onBack={navigateToHome}
+              onSelectSuggestion={navigateToHome}
             />
           </Animated.View>
         );

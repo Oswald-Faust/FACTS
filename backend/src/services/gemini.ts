@@ -52,6 +52,7 @@ interface GeminiRequest {
     topP?: number;
     topK?: number;
     maxOutputTokens?: number;
+    responseMimeType?: string;
   };
 }
 
@@ -248,4 +249,103 @@ export async function verifyWithGemini(claim: string, imagePath?: string): Promi
     console.error('Error in verifyWithGemini service:', error);
     throw error;
   }
+}
+
+export async function generateNewsSuggestions(): Promise<string[]> {
+  const PROMPT = `
+  Tu es un assistant connecté à l'actualité mondiale en temps réel.
+  Ta mission : Trouver 12 rumeurs, affirmations virales ou questions d'actualité récentes (24h-48h) qui méritent vérification.
+  
+  Règles strictes :
+  1. Utilise Google Search pour trouver des sujets brûlants (politique, tech, insolite, social, santé).
+  2. Formule chaque sujet sous forme de QUESTION courte et percutante (max 15 mots).
+  3. Réponds UNIQUEMENT au format JSON brut (Array de strings), sans markdown, sans intro.
+  
+  Exemple de format attendu :
+  ["Le gouvernement a-t-il vraiment supprimé cette aide ?", "Cette vidéo de l'ours est-elle un deepfake ?", "Est-il vrai que la NASA a annoncé la fin du monde ?", ...]
+  `;
+
+  const requestBody: GeminiRequest = {
+    contents: [
+      {
+        role: 'user',
+        parts: [{ text: PROMPT }],
+      },
+    ],
+    tools: [
+      {
+        googleSearch: {},
+      },
+    ],
+    generationConfig: {
+      temperature: 0.6,
+      maxOutputTokens: 2000, // Increased for 10+ items
+      // responseMimeType removed to be safer, relying on prompt
+    },
+  };
+
+  try {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) throw new Error('GEMINI_API_KEY missing');
+
+    const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!response.ok) {
+        console.error("Gemini Suggestions Error", await response.text());
+        return getFallbackSuggestions();
+    }
+
+    const data = await response.json() as unknown as GeminiResponse;
+    // Log raw text for debugging
+    let text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    console.log("DEBUG: Raw Gemini suggestions:", text.substring(0, 100) + "..."); 
+
+    // Clean potential markdown code blocks
+    text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+
+    try {
+        const parsed = JSON.parse(text);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+            // Return top 10
+            return parsed.slice(0, 10).map(s => String(s));
+        }
+    } catch (e) {
+        console.warn("Failed to parse Gemini JSON suggestions", e);
+        console.log("Fallback parsing text split...");
+        // Fallback: splitting by newlines or question marks
+        const lines = text.split('\n')
+           .map(l => l.trim())
+           .filter(l => l.length > 10 && (l.includes('?') || l.length > 20))
+           .map(l => l.replace(/^["']|["']$/g, '').replace(/,$/, '')); // Clean quotes
+        
+        if (lines.length > 0) {
+            return lines.slice(0, 10);
+        }
+    }
+
+    return getFallbackSuggestions();
+
+  } catch (error) {
+    console.error('Error generating suggestions:', error);
+    return getFallbackSuggestions();
+  }
+}
+
+function getFallbackSuggestions(): string[] {
+    return [
+        "Le prix de l'électricité va-t-il augmenter le 1er février ?",
+        "Est-il vrai que boire de l'eau citronnée fait maigrir ?",
+        "Cette vidéo virale de chat est-elle générée par IA ?",
+        "La dernière réforme des retraites est-elle annulée ?",
+        "L'interdiction des voitures thermiques repoussée à 2040 ?",
+        "Une nouvelle aide de 500€ pour les étudiants ?",
+        "Le café est-il vraiment mauvais pour le cœur ?",
+        "Arnaque au SMS : comment reconnaître le faux message Ameli ?",
+        "Est-ce que ChatGPT a réussi l'examen du barreau ?",
+        "Les JO 2024 ont-ils vraiment coûté le double du budget ?"
+    ];
 }

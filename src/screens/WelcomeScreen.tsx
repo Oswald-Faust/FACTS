@@ -103,6 +103,8 @@ function Bubble({ data }: { data: BubbleData }) {
 function SlideItem({ item }: { item: SlideData }) {
   return (
     <View style={styles.slide}>
+
+
       {/* Bubbles Section */}
       <View style={styles.bubblesSection}>
         {item.bubbles.map((bubble) => (
@@ -295,6 +297,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 24,
   },
+
   bubblesSection: {
     flex: 1,
     justifyContent: 'center',

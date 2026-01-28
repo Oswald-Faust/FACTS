@@ -36,30 +36,42 @@ import ApiService, { ApiError } from '../services/api';
 import * as Storage from '../services/storage';
 import SoftBackground from '../components/SoftBackground';
 
+import NewsSection from '../components/NewsSection';
+
 const { width } = Dimensions.get('window');
 
 interface HomeScreenProps {
   onNavigateToResult: () => void;
   onNavigateToHistory: () => void;
+  onNavigateToNews: () => void;
   onNavigateToProfile: () => void;
   onNavigateToPaywall: () => void;
 }
 
 export default function HomeScreen({ 
   onNavigateToResult, 
-  onNavigateToHistory, 
+  onNavigateToHistory,
+  onNavigateToNews, 
   onNavigateToProfile,
   onNavigateToPaywall 
 }: HomeScreenProps) {
   const insets = useSafeAreaInsets();
   const theme = useTheme();
   const isDark = theme === 'dark';
-  const { dispatch, state: { history } } = useApp();
+  const { dispatch, state: { history, draftClaim }, setDraftClaim } = useApp();
 
   const [claim, setClaim] = useState('');
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [imageContext, setImageContext] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  // Auto-fill from news suggestion
+  React.useEffect(() => {
+      if (draftClaim) {
+          setClaim(draftClaim);
+          setDraftClaim('');
+      }
+  }, [draftClaim]);
   
   // Animation values
   const inputScale = useSharedValue(1);
@@ -199,7 +211,7 @@ export default function HomeScreen({
             </TouchableOpacity>
             
             <View /> 
-
+ 
             <TouchableOpacity onPress={onNavigateToHistory} style={styles.iconButton}>
                <Ionicons name="time-outline" size={28} color={textColor} />
             </TouchableOpacity>
@@ -218,10 +230,10 @@ export default function HomeScreen({
           {/* Main Input Card */}
           <Animated.View 
             entering={FadeInUp.delay(300).springify()} 
-            style={[styles.cardContainer, inputAnimatedStyle]}
+            style={styles.cardContainer}
           >
-            <View 
-               style={[styles.card, { backgroundColor: cardBg }]}
+            <Animated.View 
+               style={[styles.card, { backgroundColor: cardBg }, inputAnimatedStyle]}
             >
               
               {/* Image Preview if selected */}
@@ -281,8 +293,18 @@ export default function HomeScreen({
                     )}
                  </TouchableOpacity>
               </View>
-            </View>
+            </Animated.View>
           </Animated.View>
+
+          {/* News Suggestions Section */}
+          <NewsSection 
+            onSelectSuggestion={(suggestion: string) => {
+              setClaim(suggestion);
+              
+              // Scroll to top to see input (optional, but good UX)
+              // We could use a ref to scrollView if needed
+            }} 
+          />
 
           {/* Link Modal */}
           {isLinkModalVisible && (
@@ -331,32 +353,7 @@ export default function HomeScreen({
             </View>
           )}
 
-          {/* Recents minimalist list */}
-          {history.length > 0 && (
-            <Animated.View entering={FadeIn.delay(500)} style={styles.recentsContainer}>
-               <Text style={[styles.sectionTitle, { color: isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)' }]}>
-                 RÉCEMMENT
-               </Text>
-               {history.slice(0, 3).map((item) => (
-                 <TouchableOpacity 
-                    key={item.id}
-                    style={styles.recentRow}
-                    onPress={() => {
-                        dispatch({ type: 'SET_CURRENT_FACT_CHECK', payload: item.factCheck });
-                        onNavigateToResult();
-                    }}
-                 >
-                    <View style={[styles.verdictDot, { backgroundColor: getVerdictColor(item.factCheck.verdict) }]} />
-                    <Text 
-                      numberOfLines={1} 
-                      style={[styles.recentText, { color: isDark ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.7)' }]}
-                    >
-                      {item.factCheck.claim}
-                    </Text>
-                 </TouchableOpacity>
-               ))}
-            </Animated.View>
-          )}
+          {/* Recents minimalist list - REMOVED */}
 
         </ScrollView>
       </KeyboardAvoidingView>

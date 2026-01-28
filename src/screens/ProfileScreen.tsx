@@ -6,10 +6,12 @@ import {
   TouchableOpacity,
   ScrollView,
   Switch,
+  ActivityIndicator,
   Alert,
   Image,
-  ActivityIndicator,
   Platform,
+  TextInput,
+  Modal,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -33,6 +35,31 @@ export default function ProfileScreen({ onBack, onNavigateToPaywall }: ProfileSc
   const [isUploading, setIsUploading] = React.useState(false);
   const { state, logout, setTheme, setUser } = useApp();
   const { user } = state;
+
+  // Edit Profile State
+  const [isEditModalVisible, setIsEditModalVisible] = React.useState(false);
+  const [editName, setEditName] = React.useState('');
+
+  const handleOpenEditProfile = () => {
+    setEditName(user?.displayName || '');
+    setIsEditModalVisible(true);
+  };
+
+  const handleSaveProfile = async () => {
+    if (!editName.trim()) {
+        Alert.alert("Erreur", "Le nom ne peut pas être vide.");
+        return;
+    }
+
+    try {
+        const updatedUser = await ApiService.updateProfile({ displayName: editName.trim() });
+        setUser(updatedUser);
+        setIsEditModalVisible(false);
+        Alert.alert("Succès", "Profil mis à jour !");
+    } catch (error) {
+        Alert.alert("Erreur", "Impossible de mettre à jour le profil.");
+    }
+  };
 
   const handlePickImage = async () => {
     try {
@@ -99,6 +126,27 @@ export default function ProfileScreen({ onBack, onNavigateToPaywall }: ProfileSc
   const toggleTheme = () => {
     const newTheme = isDark ? 'light' : 'dark';
     setTheme(newTheme);
+  };
+
+  const formatDate = (date?: Date | string) => {
+    if (!date) return 'Indéfini';
+    return new Date(date).toLocaleDateString('fr-FR', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    });
+  };
+
+  const handleManageSubscription = () => {
+    if (user?.isPremium) {
+      Alert.alert(
+        "Gérer l'abonnement",
+        "Votre abonnement est géré par l'App Store. Vous pouvez le modifier ou l'annuler dans les réglages de votre appareil.",
+        [{ text: "OK" }]
+      );
+    } else {
+      onNavigateToPaywall();
+    }
   };
 
   const renderSettingItem = (
@@ -211,18 +259,38 @@ export default function ProfileScreen({ onBack, onNavigateToPaywall }: ProfileSc
                 </Text>
              </View>
           </View>
+        </Animated.View>
 
-          {/* Premium Banner */}
-          {!user?.isPremium && (
-            <TouchableOpacity 
+        {/* Subscription Section */}
+        <Animated.View entering={FadeInUp.delay(150)} style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: isDark ? Colors.neutral.gray[400] : Colors.neutral.gray[500] }]}>
+            ABONNEMENT
+          </Text>
+
+          {user?.isPremium ? (
+             <View style={[styles.sectionContent, { backgroundColor: isDark ? Colors.dark.card : Colors.light.card, padding: 0 }]}>
+                 <TouchableOpacity onPress={handleManageSubscription} style={styles.subscriptionRow}>
+                    <View style={styles.subLeft}>
+                        <View style={styles.subIconContainer}>
+                           <Ionicons name="diamond" size={22} color="#FFD700" />
+                        </View>
+                        <View>
+                           <Text style={[styles.subPlanName, { color: isDark ? '#FFF' : '#000' }]}>
+                               FACTS+ {user.plan === 'yearly' ? 'Annuel' : user.plan === 'monthly' ? 'Mensuel' : 'Premium'}
+                           </Text>
+                           <Text style={styles.subStatus}>
+                               Renouvellement : {formatDate(user.premiumExpiresAt as any || new Date(Date.now() + 30*24*60*60*1000))}
+                           </Text>
+                        </View>
+                    </View>
+                    <Ionicons name="chevron-forward" size={16} color={Colors.neutral.gray[400]} />
+                 </TouchableOpacity>
+             </View>
+          ) : (
+             <TouchableOpacity 
               onPress={onNavigateToPaywall}
-              activeOpacity={0.9}
-              style={[
-                styles.premiumBanner,
-                { 
-                  marginTop: Spacing.xl,
-                }
-              ]}
+              activeOpacity={0.95}
+              style={[styles.premiumBanner, { marginTop: 0 }]}
             >
               <LinearGradient
                 colors={['#FFD700', '#FFA500']}
@@ -236,9 +304,11 @@ export default function ProfileScreen({ onBack, onNavigateToPaywall }: ProfileSc
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.premiumTitle}>Passer à FACTS+</Text>
-                    <Text style={styles.premiumSubtitle}>Zéro limites, Analyse IA Visuelle, Deep Search.</Text>
+                    <Text style={styles.premiumSubtitle}>Plan actuel: Gratuit (5/jour)</Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={24} color="#FFF" />
+                  <View style={styles.upgradeButton}>
+                     <Text style={styles.upgradeButtonText}>UPGRADE</Text>
+                  </View>
                 </View>
               </LinearGradient>
             </TouchableOpacity>
@@ -252,6 +322,17 @@ export default function ProfileScreen({ onBack, onNavigateToPaywall }: ProfileSc
           </Text>
           <View style={styles.sectionContent}>
             {renderSettingItem(
+              'phone-portrait-outline',
+              'Suivre le système',
+              <Switch 
+                value={state.theme === 'system'} 
+                onValueChange={(val) => setTheme(val ? 'system' : (isDark ? 'dark' : 'light'))}
+                trackColor={{ false: Colors.neutral.gray[300], true: Colors.primary.main }}
+                ios_backgroundColor={Colors.neutral.gray[300]}
+              />
+            )}
+
+            {state.theme !== 'system' && renderSettingItem(
               'moon-outline', 
               'Mode Sombre', 
               <Switch 
@@ -282,7 +363,7 @@ export default function ProfileScreen({ onBack, onNavigateToPaywall }: ProfileSc
               'person-outline', 
               'Modifier le profil', 
               '',
-              () => Alert.alert("Utilisez l'icône de caméra", "Cliquez sur votre photo de profil pour la modifier.")
+              handleOpenEditProfile,
             )}
             
             <View style={[styles.separator, { backgroundColor: isDark ? Colors.dark.surface : Colors.neutral.gray[200] }]} />
@@ -313,6 +394,61 @@ export default function ProfileScreen({ onBack, onNavigateToPaywall }: ProfileSc
         </Animated.View>
 
       </ScrollView>
+
+      {/* Edit Profile Modal */}
+      <Modal
+        visible={isEditModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setIsEditModalVisible(false)}
+      >
+        <TouchableOpacity 
+            style={styles.modalOverlay} 
+            activeOpacity={1} 
+            onPress={() => setIsEditModalVisible(false)}
+        >
+            <TouchableOpacity 
+                activeOpacity={1} 
+                style={[styles.modalContent, { backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF' }]}
+            >
+                <Text style={[styles.modalTitle, { color: isDark ? '#FFF' : '#000' }]}>Modifier le profil</Text>
+                
+                <Text style={[styles.inputLabel, { color: isDark ? '#CCC' : '#666' }]}>Nom d'affichage</Text>
+                <TextInput
+                    style={[
+                        styles.modalInput, 
+                        { 
+                            color: isDark ? '#FFF' : '#000',
+                            backgroundColor: isDark ? '#2C2C2E' : '#F5F5F5',
+                            borderColor: isDark ? '#3A3A3C' : '#E0E0E0'
+                        }
+                    ]}
+                    value={editName}
+                    onChangeText={setEditName}
+                    placeholder="Votre nom"
+                    placeholderTextColor={isDark ? '#555' : '#AAA'}
+                    autoFocus
+                />
+
+                <View style={styles.modalActions}>
+                    <TouchableOpacity 
+                        style={styles.modalButttonCancel} 
+                        onPress={() => setIsEditModalVisible(false)}
+                    >
+                        <Text style={{ color: isDark ? '#AAA' : '#666' }}>Annuler</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity 
+                        style={styles.modalButtonSave} 
+                        onPress={handleSaveProfile}
+                    >
+                        <Text style={{ color: '#FFF', fontWeight: '600' }}>Enregistrer</Text>
+                    </TouchableOpacity>
+                </View>
+            </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
     </View>
   );
 }
@@ -505,5 +641,104 @@ const styles = StyleSheet.create({
     ...Typography.caption2,
     color: 'rgba(255,255,255,0.9)',
     marginTop: 2,
+  },
+  subscriptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: Spacing.lg,
+  },
+  subLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  subIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 215, 0, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  subPlanName: {
+    ...Typography.body,
+    fontWeight: '700',
+  },
+  subStatus: {
+    ...Typography.caption2,
+    color: Colors.neutral.gray[500],
+    marginTop: 2,
+  },
+  upgradeButton: {
+    backgroundColor: '#FFF',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  upgradeButtonText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#FF8C00',
+  },
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  modalContent: {
+    width: '85%',
+    borderRadius: 24,
+    padding: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  inputLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+  },
+  modalInput: {
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    fontSize: 16,
+    marginBottom: 24,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 16,
+  },
+  modalButttonCancel: {
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    flex: 1,
+    alignItems: 'center',
+  },
+  modalButtonSave: {
+    backgroundColor: Colors.primary.main,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    flex: 1,
+    alignItems: 'center',
   },
 });

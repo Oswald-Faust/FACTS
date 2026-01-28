@@ -12,6 +12,7 @@ import { connectDatabase } from './config/database';
 import authRoutes from './routes/auth';
 import factCheckRoutes from './routes/factChecks';
 import userRoutes from './routes/users';
+import suggestionRoutes from './routes/suggestions';
 import { errorHandler } from './middleware/errorHandler';
 
 // Load environment variables
@@ -63,6 +64,8 @@ app.use('/uploads', express.static(require('path').join(__dirname, '../uploads')
 app.use('/api/auth', authRoutes);
 app.use('/api/fact-checks', factCheckRoutes);
 app.use('/api/users', userRoutes);
+console.log('Mounting suggestions routes...');
+app.use('/api/suggestions', suggestionRoutes);
 
 // 404 handler
 app.use((req, res) => {

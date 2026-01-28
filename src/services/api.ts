@@ -137,6 +137,19 @@ class ApiService {
     return data.user;
   }
 
+  public async updateProfile(data: { displayName?: string; photoUrl?: string }) {
+    const response = await this.request<{ user: User }>('/users/profile', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+    
+    if (response.user) {
+        await Storage.saveUser(response.user);
+    }
+    
+    return response.user;
+  }
+
   // Fact Check Methods
   public async getHistory(page = 1, limit = 20) {
     const data = await this.request<{ factChecks: FactCheckResult[], pagination: any }>(
@@ -237,6 +250,21 @@ class ApiService {
     } catch (error) {
       console.error('Avatar Upload Error:', error);
       throw error;
+    }
+  }
+
+  public async getNewsSuggestions(): Promise<string[]> {
+    try {
+        const data = await this.request<string[]>('/suggestions/news');
+        return data; // API wrapper already extracts .data
+    } catch (e) {
+        console.warn("Failed to fetch news suggestions", e);
+        // Fallback offline suggestions
+        return [
+            "L'intelligence artificielle va-t-elle remplacer les médecins ?",
+            "Le réchauffement climatique est-il irréversible ?",
+            "Les voitures électriques polluent-elles plus que les thermiques ?"
+        ];
     }
   }
 }

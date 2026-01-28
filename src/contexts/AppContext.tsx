@@ -16,6 +16,7 @@ interface AppState {
   effectiveTheme: 'light' | 'dark';
   history: HistoryItem[];
   currentFactCheck: FactCheckResult | null;
+  draftClaim: string;
 }
 
 type AppAction =
@@ -27,6 +28,7 @@ type AppAction =
   | { type: 'SET_HISTORY'; payload: HistoryItem[] }
   | { type: 'ADD_FACT_CHECK'; payload: FactCheckResult }
   | { type: 'SET_CURRENT_FACT_CHECK'; payload: FactCheckResult | null }
+  | { type: 'SET_DRAFT_CLAIM'; payload: string }
   | { type: 'LOGOUT' };
 
 const initialState: AppState = {
@@ -37,6 +39,7 @@ const initialState: AppState = {
   effectiveTheme: 'dark',
   history: [],
   currentFactCheck: null,
+  draftClaim: '',
 };
 
 function appReducer(state: AppState, action: AppAction): AppState {
@@ -67,6 +70,8 @@ function appReducer(state: AppState, action: AppAction): AppState {
       };
     case 'SET_CURRENT_FACT_CHECK':
       return { ...state, currentFactCheck: action.payload };
+    case 'SET_DRAFT_CLAIM':
+      return { ...state, draftClaim: action.payload };
     case 'LOGOUT':
       return { 
         ...initialState, 
@@ -89,6 +94,7 @@ interface AppContextType {
   removeFactCheck: (id: string) => Promise<void>;
   clearHistory: () => Promise<void>;
   logout: () => Promise<void>;
+  setDraftClaim: (claim: string) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -255,6 +261,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         removeFactCheck,
         clearHistory,
         logout,
+        setDraftClaim: (claim: string) => dispatch({ type: 'SET_DRAFT_CLAIM', payload: claim }),
       }}
     >
       {children}

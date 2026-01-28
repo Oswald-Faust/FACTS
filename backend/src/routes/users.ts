@@ -145,6 +145,8 @@ router.post('/premium/upgrade', authenticate, async (req: AuthRequest, res: Resp
       {
         isPremium: true,
         premiumExpiresAt,
+        plan: 'yearly',
+        subscriptionStatus: 'active',
       },
       { new: true }
     );
