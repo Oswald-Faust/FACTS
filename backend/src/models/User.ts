@@ -22,6 +22,8 @@ export interface IUser extends Document {
   premiumExpiresAt?: Date;
   createdAt: Date;
   updatedAt: Date;
+  lastLoginAt?: Date;
+  revenueCatId?: string;
   comparePassword(candidatePassword: string): Promise<boolean>;
 }
 
@@ -81,6 +83,14 @@ const UserSchema = new Schema<IUser>(
     },
     premiumExpiresAt: {
       type: Date,
+    },
+    lastLoginAt: {
+      type: Date,
+    },
+    revenueCatId: {
+      type: String,
+      sparse: true,
+      unique: true,
     },
   },
   {

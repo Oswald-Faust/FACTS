@@ -40,6 +40,7 @@ type AppScreen =
 
 import ApiService from './src/services/api';
 import * as Storage from './src/services/storage';
+import PurchaseService from './src/services/PurchaseService';
 
 function AppContent() {
   const { state, dispatch, completeOnboarding, setUser } = useApp();
@@ -47,8 +48,9 @@ function AppContent() {
   const [emailAuthMode, setEmailAuthMode] = useState<'login' | 'signup'>('signup');
   const [isSplashAnimationDone, setIsSplashAnimationDone] = useState(false);
 
-  // Hide native splash when app is ready
+  // Hide native splash when app is ready and init RevenueCat
   useEffect(() => {
+    PurchaseService.init();
     if (!state.isLoading) {
       SplashScreenExpo.hideAsync();
     }
@@ -296,10 +298,6 @@ function AppContent() {
           >
             <PaywallScreen
               onClose={() => setCurrentScreen('home')}
-              onRestore={() => {
-                // TODO: Implement restore logic
-                console.log('Restore purchases');
-              }}
             />
           </Animated.View>
         );

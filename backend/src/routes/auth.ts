@@ -49,6 +49,7 @@ router.post('/register', async (req: AuthRequest, res: Response, next: NextFunct
       password: data.password,
       displayName: data.displayName || data.email.split('@')[0],
       provider: 'email',
+      lastLoginAt: new Date(),
     });
 
     await user.save();
@@ -92,6 +93,10 @@ router.post('/login', async (req: AuthRequest, res: Response, next: NextFunction
     if (!isValid) {
       throw createError('Email ou mot de passe incorrect', 401);
     }
+
+    // Update last login
+    user.lastLoginAt = new Date();
+    await user.save();
 
     // Generate token
     const token = generateToken(user._id.toString());
@@ -137,6 +142,9 @@ router.post('/social', async (req: AuthRequest, res: Response, next: NextFunctio
         if (data.photoUrl) user.photoUrl = data.photoUrl;
         await user.save();
       }
+      // Always update last login for social auth
+      user.lastLoginAt = new Date();
+      await user.save();
     } else {
       // Create new user
       user = new User({
@@ -145,6 +153,7 @@ router.post('/social', async (req: AuthRequest, res: Response, next: NextFunctio
         photoUrl: data.photoUrl,
         provider: data.provider,
         providerId: data.providerId,
+        lastLoginAt: new Date(),
       });
       await user.save();
     }

@@ -1,8 +1,10 @@
 import { Response, NextFunction } from 'express';
-import { User } from '../models';
+import { User, GlobalSettings } from '../models';
 import { AuthRequest, createError } from './index';
 
-const FREE_DAILY_LIMIT = 5;
+// Cache settings purely for fallback or performance if needed (optional optimization)
+// For now, we fetch every time to ensure real-time updates from Admin Dashboard
+const DEFAULT_FREE_LIMIT = 10;
 
 export const checkQuota = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
@@ -15,9 +17,27 @@ export const checkQuota = async (req: AuthRequest, res: Response, next: NextFunc
       throw createError('Utilisateur non trouvé', 404);
     }
 
-    // If premium, strictly no limit
+    // Load global settings
+    let settings = await GlobalSettings.findOne();
+    if (!settings) {
+      // Create default settings if not exists
+      settings = await GlobalSettings.create({
+        freeDailyLimit: DEFAULT_FREE_LIMIT,
+        premiumDailyLimit: 0
+      });
+    }
+
+    // Determine limit based on plan
+    let dailyLimit = settings.freeDailyLimit;
+    
+    // Check premium status
     if (user.isPremium || user.plan === 'monthly' || user.plan === 'yearly') {
-      return next();
+        const premiumLimit = settings.premiumDailyLimit;
+        // If premium limit is 0, it means unlimited
+        if (premiumLimit === 0) {
+            return next();
+        }
+        dailyLimit = premiumLimit;
     }
 
     // Check last request date to reset counter
@@ -36,9 +56,8 @@ export const checkQuota = async (req: AuthRequest, res: Response, next: NextFunc
     }
 
     // Check quota
-    if (user.dailyRequestsCount >= FREE_DAILY_LIMIT) {
-      // You can customize this error code to trigger the Paywall on client side
-      throw createError('Limite quotidienne atteinte. Passez Premium pour continuer.', 403);
+    if (user.dailyRequestsCount >= dailyLimit) {
+      throw createError(`Limite quotidienne atteinte (${dailyLimit}). Passez Premium pour plus.`, 403);
     }
 
     // Increment counter

@@ -1,6 +1,7 @@
 import connectToDatabase from '@/lib/db';
 import { User } from '@/models/User';
-import { Users as UsersIcon } from 'lucide-react';
+import { Users as UsersIcon, Eye } from 'lucide-react';
+import Link from 'next/link';
 
 async function getUsers() {
   await connectToDatabase();
@@ -32,9 +33,11 @@ export default async function UsersPage() {
                             <th className="px-6 py-4 font-semibold text-slate-700">Provider</th>
                             <th className="px-6 py-4 font-semibold text-slate-700">Analyses</th>
                             <th className="px-6 py-4 font-semibold text-slate-700">Statut</th>
+                            <th className="px-6 py-4 font-semibold text-slate-700 text-right">Actions</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
+                        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                         {users.map((user: any) => (
                             <tr key={user._id} className="hover:bg-slate-50 transition-colors">
                                 <td className="px-6 py-4">
@@ -75,11 +78,20 @@ export default async function UsersPage() {
                                         </span>
                                     )}
                                 </td>
+                                <td className="px-6 py-4 text-right">
+                                    <Link 
+                                        href={`/users/${user._id}`}
+                                        className="inline-flex items-center justify-center p-2 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition-colors"
+                                        title="Voir les détails"
+                                    >
+                                        <Eye size={20} />
+                                    </Link>
+                                </td>
                             </tr>
                         ))}
                         {users.length === 0 && (
                             <tr>
-                                <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
+                                <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
                                     Aucun utilisateur trouvé.
                                 </td>
                             </tr>

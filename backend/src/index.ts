@@ -13,6 +13,8 @@ import authRoutes from './routes/auth';
 import factCheckRoutes from './routes/factChecks';
 import userRoutes from './routes/users';
 import suggestionRoutes from './routes/suggestions';
+import settingsRoutes from './routes/settings';
+import revenueCatRoutes from './routes/revenueCat';
 import { errorHandler } from './middleware/errorHandler';
 
 // Load environment variables
@@ -66,6 +68,8 @@ app.use('/api/fact-checks', factCheckRoutes);
 app.use('/api/users', userRoutes);
 console.log('Mounting suggestions routes...');
 app.use('/api/suggestions', suggestionRoutes);
+app.use('/api/settings', settingsRoutes);
+app.use('/api/webhooks/revenuecat', revenueCatRoutes);
 
 // 404 handler
 app.use((req, res) => {

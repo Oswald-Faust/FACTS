@@ -13,6 +13,7 @@ export interface IUser extends Document {
   premiumExpiresAt?: Date;
   createdAt: Date;
   updatedAt: Date;
+  lastLoginAt?: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
 }
 
@@ -53,6 +54,9 @@ const UserSchema = new Schema<IUser>(
       default: false,
     },
     premiumExpiresAt: {
+      type: Date,
+    },
+    lastLoginAt: {
       type: Date,
     },
   },
