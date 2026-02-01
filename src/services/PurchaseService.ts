@@ -22,7 +22,11 @@ class PurchaseService {
     return PurchaseService.instance;
   }
 
+  private initialized = false;
+
   async init() {
+    if (this.initialized) return;
+
     if (Platform.OS === 'ios') {
       Purchases.configure({ apiKey: API_KEYS.apple });
     } else if (Platform.OS === 'android') {
@@ -39,6 +43,8 @@ class PurchaseService {
     Purchases.addCustomerInfoUpdateListener((info) => {
         this.customerInfoListeners.forEach(listener => listener(info));
     });
+
+    this.initialized = true;
   }
 
   async getOfferings() {
