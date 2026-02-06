@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, ScrollView } from 'react-native';
-import { PurchasesPackage, CustomerInfo } from 'react-native-purchases';
-import PurchaseService from '../services/PurchaseService';
+import PurchaseService, { PurchasesPackage, CustomerInfo } from '../services/PurchaseService';
 
 
 const PaywallScreen = ({ onClose }: { onClose: () => void }) => {

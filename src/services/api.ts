@@ -112,6 +112,26 @@ class ApiService {
     return data;
   }
 
+  public async socialLogin(data: { 
+    email: string; 
+    displayName?: string; 
+    photoUrl?: string; 
+    provider: 'google' | 'apple'; 
+    providerId: string; 
+  }) {
+    const response = await this.request<{ user: User; token: string }>('/auth/social', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+
+    // Save token
+    this.setToken(response.token);
+    await Storage.saveAuthToken(response.token);
+    await Storage.saveUser(response.user);
+
+    return response;
+  }
+
   public async getProfile() {
     const data = await this.request<{ user: User }>('/users/profile');
     await Storage.saveUser(data.user);
@@ -149,6 +169,25 @@ class ApiService {
     
     return response.user;
   }
+
+  public async changePassword(currentPassword: string, newPassword: string) {
+    return await this.request<{ message: string }>('/users/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
+  }
+
+  public async deleteAccount() {
+    const response = await this.request<{ message: string }>('/users/account', {
+      method: 'DELETE',
+    });
+    
+    this.token = null;
+    await Storage.removeUser();
+    
+    return response;
+  }
+
 
   // Fact Check Methods
   public async getHistory(page = 1, limit = 20) {

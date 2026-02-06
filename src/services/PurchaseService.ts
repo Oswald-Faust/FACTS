@@ -1,13 +1,29 @@
-import Purchases, {
-  CustomerInfo,
-  PurchasesPackage,
-} from 'react-native-purchases';
+// import Purchases, {
+//   CustomerInfo,
+//   PurchasesPackage,
+// } from 'react-native-purchases';
 import { Platform } from 'react-native';
 
 const API_KEYS = {
   apple: process.env.EXPO_PUBLIC_REVENUECAT_APPLE_KEY || 'apl_placeholder',
   google: process.env.EXPO_PUBLIC_REVENUECAT_GOOGLE_KEY || 'goog_placeholder',
 };
+
+// Types mocks
+export interface CustomerInfo {
+    entitlements: {
+        active: Record<string, any>;
+        all: Record<string, any>;
+    };
+}
+
+export interface PurchasesPackage {
+    identifier: string;
+    product: {
+        title: string;
+        priceString: string;
+    }
+}
 
 class PurchaseService {
   private static instance: PurchaseService;
@@ -25,59 +41,23 @@ class PurchaseService {
   private initialized = false;
 
   async init() {
-    if (this.initialized) return;
-
-    if (Platform.OS === 'ios') {
-      Purchases.configure({ apiKey: API_KEYS.apple });
-    } else if (Platform.OS === 'android') {
-      Purchases.configure({ apiKey: API_KEYS.google });
-    }
-
-    try {
-      const customerInfo = await Purchases.getCustomerInfo();
-      // Handle restoring or checking initial state here if needed
-    } catch (e) {
-      console.log('Error initializing RevenueCat', e);
-    }
-    
-    Purchases.addCustomerInfoUpdateListener((info) => {
-        this.customerInfoListeners.forEach(listener => listener(info));
-    });
-
+    console.log('[Mock] Purchases init skipped');
     this.initialized = true;
   }
 
-  async getOfferings() {
-    try {
-      const offerings = await Purchases.getOfferings();
-      if (offerings.current !== null && offerings.current.availablePackages.length !== 0) {
-        return offerings.current.availablePackages;
-      }
-    } catch (e) {
-      console.log('Error fetching offerings', e);
-    }
+  async getOfferings(): Promise<PurchasesPackage[]> {
+    console.log('[Mock] getOfferings');
     return [];
   }
 
-  async purchasePackage(pack: PurchasesPackage) {
-    try {
-      const { customerInfo } = await Purchases.purchasePackage(pack);
-      return customerInfo;
-    } catch (e: any) {
-      if (!e.userCancelled) {
-        throw new Error(e.message);
-      }
-    }
+  async purchasePackage(pack: PurchasesPackage): Promise<CustomerInfo | undefined> {
+     console.log('[Mock] purchasePackage');
+     return undefined;
   }
 
-  async restorePurchases() {
-    try {
-      const customerInfo = await Purchases.restorePurchases();
-      return customerInfo;
-    } catch (e) {
-        console.log('Error restoring purchases', e);
-        throw e;
-    }
+  async restorePurchases(): Promise<CustomerInfo | undefined> {
+    console.log('[Mock] restorePurchases');
+    return undefined;
   }
 
   addCustomerInfoUpdateListener(listener: (info: CustomerInfo) => void) {

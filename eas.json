@@ -1,7 +1,6 @@
 {
   "cli": {
-    "version": ">= 7.0.0",
-    "appVersionSource": "remote"
+    "version": ">= 7.0.0"
   },
   "build": {
     "development": {
@@ -13,7 +12,8 @@
     },
     "production": {
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://site--facts--vmdg6rghy9dk.code.run"
+        "EXPO_PUBLIC_API_URL": "https://site--facts--vmdg6rghy9dk.code.run",
+        "EXPO_PUBLIC_GEMINI_API_KEY": "AIzaSyAUr7u50zWpjvrYzIbGrJBcVT0qGOrufsU"
       }
     }
   },

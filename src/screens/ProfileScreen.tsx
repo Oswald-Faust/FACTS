@@ -33,12 +33,22 @@ export default function ProfileScreen({ onBack, onNavigateToPaywall }: ProfileSc
   const theme = useTheme();
   const isDark = theme === 'dark';
   const [isUploading, setIsUploading] = React.useState(false);
-  const { state, logout, setTheme, setUser } = useApp();
+  const { state, logout, setTheme, setUser, clearHistory } = useApp();
   const { user } = state;
 
   // Edit Profile State
   const [isEditModalVisible, setIsEditModalVisible] = React.useState(false);
   const [editName, setEditName] = React.useState('');
+
+  // Password Change State
+  const [isPasswordModalVisible, setIsPasswordModalVisible] = React.useState(false);
+  const [currentPassword, setCurrentPassword] = React.useState('');
+  const [newPassword, setNewPassword] = React.useState('');
+  const [confirmPassword, setConfirmPassword] = React.useState('');
+  const [isChangingPassword, setIsChangingPassword] = React.useState(false);
+
+  // Privacy & Security State
+  const [isSecurityModalVisible, setIsSecurityModalVisible] = React.useState(false);
 
   const handleOpenEditProfile = () => {
     setEditName(user?.displayName || '');
@@ -59,6 +69,82 @@ export default function ProfileScreen({ onBack, onNavigateToPaywall }: ProfileSc
     } catch (error) {
         Alert.alert("Erreur", "Impossible de mettre à jour le profil.");
     }
+  };
+
+  const handleChangePassword = async () => {
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      Alert.alert("Erreur", "Veuillez remplir tous les champs.");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      Alert.alert("Erreur", "Les nouveaux mots de passe ne correspondent pas.");
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      Alert.alert("Erreur", "Le nouveau mot de passe doit contenir au moins 6 caractères.");
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      await ApiService.changePassword(currentPassword, newPassword);
+      setIsPasswordModalVisible(false);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      Alert.alert("Succès", "Votre mot de passe a été modifié.");
+    } catch (error: any) {
+      Alert.alert("Erreur", error.message || "Échec du changement de mot de passe.");
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      "Supprimer le compte",
+      "Êtes-vous sûr de vouloir supprimer votre compte ? Cette action est irréversible et toutes vos données seront effacées.",
+      [
+        { text: "Annuler", style: "cancel" },
+        { 
+          text: "Supprimer", 
+          style: "destructive", 
+          onPress: async () => {
+            try {
+              await ApiService.deleteAccount();
+              await logout(); // This will clear frontend state and navigate away
+              Alert.alert("Compte supprimé", "Votre compte a été supprimé avec succès.");
+            } catch (error) {
+              Alert.alert("Erreur", "Impossible de supprimer le compte.");
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleClearHistory = async () => {
+    Alert.alert(
+      "Effacer l'historique",
+      "Voulez-vous vraiment effacer tout votre historique de vérifications ?",
+      [
+        { text: "Annuler", style: "cancel" },
+        { 
+          text: "Effacer", 
+          style: "destructive", 
+          onPress: async () => {
+            try {
+              await clearHistory();
+              Alert.alert("Succès", "Historique effacé.");
+            } catch (error) {
+              Alert.alert("Erreur", "Impossible d'effacer l'historique.");
+            }
+          }
+        }
+      ]
+    );
   };
 
   const handlePickImage = async () => {
@@ -342,15 +428,6 @@ export default function ProfileScreen({ onBack, onNavigateToPaywall }: ProfileSc
                 ios_backgroundColor={Colors.neutral.gray[300]}
               />
             )}
-            
-            <View style={[styles.separator, { backgroundColor: isDark ? Colors.dark.surface : Colors.neutral.gray[200] }]} />
-
-            {renderSettingItem(
-              'notifications-outline', 
-              'Notifications', 
-              'Oui',
-              () => Alert.alert("Bientôt disponible", "La gestion des notifications arrive bientôt !")
-            )}
           </View>
         </Animated.View>
 
@@ -372,7 +449,19 @@ export default function ProfileScreen({ onBack, onNavigateToPaywall }: ProfileSc
               'shield-checkmark-outline', 
               'Confidentialité et sécurité', 
               '',
-              () => Alert.alert("Bientôt disponible")
+              () => setIsSecurityModalVisible(true)
+            )}
+            
+            {user?.provider === 'email' && (
+              <>
+                <View style={[styles.separator, { backgroundColor: isDark ? Colors.dark.surface : Colors.neutral.gray[200] }]} />
+                {renderSettingItem(
+                  'lock-closed-outline', 
+                  'Changer le mot de passe', 
+                  '',
+                  () => setIsPasswordModalVisible(true)
+                )}
+              </>
             )}
           </View>
         </Animated.View>
@@ -395,25 +484,30 @@ export default function ProfileScreen({ onBack, onNavigateToPaywall }: ProfileSc
 
       </ScrollView>
 
-      {/* Edit Profile Modal */}
+      {/* Password Change Modal */}
       <Modal
-        visible={isEditModalVisible}
+        visible={isPasswordModalVisible}
         transparent={true}
         animationType="fade"
-        onRequestClose={() => setIsEditModalVisible(false)}
+        onRequestClose={() => setIsPasswordModalVisible(false)}
       >
         <TouchableOpacity 
             style={styles.modalOverlay} 
             activeOpacity={1} 
-            onPress={() => setIsEditModalVisible(false)}
+            onPress={() => setIsPasswordModalVisible(false)}
         >
             <TouchableOpacity 
                 activeOpacity={1} 
                 style={[styles.modalContent, { backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF' }]}
             >
-                <Text style={[styles.modalTitle, { color: isDark ? '#FFF' : '#000' }]}>Modifier le profil</Text>
-                
-                <Text style={[styles.inputLabel, { color: isDark ? '#CCC' : '#666' }]}>Nom d'affichage</Text>
+                <View style={styles.modalHeader}>
+                    <Text style={[styles.modalTitle, { color: isDark ? '#FFF' : '#000' }]}>Changer le mot de passe</Text>
+                    <TouchableOpacity onPress={() => setIsPasswordModalVisible(false)}>
+                        <Ionicons name="close" size={24} color={isDark ? '#AAA' : '#666'} />
+                    </TouchableOpacity>
+                </View>
+
+                <Text style={[styles.inputLabel, { color: isDark ? '#CCC' : '#666' }]}>Mot de passe actuel</Text>
                 <TextInput
                     style={[
                         styles.modalInput, 
@@ -423,28 +517,121 @@ export default function ProfileScreen({ onBack, onNavigateToPaywall }: ProfileSc
                             borderColor: isDark ? '#3A3A3C' : '#E0E0E0'
                         }
                     ]}
-                    value={editName}
-                    onChangeText={setEditName}
-                    placeholder="Votre nom"
+                    value={currentPassword}
+                    onChangeText={setCurrentPassword}
+                    placeholder="••••••••"
                     placeholderTextColor={isDark ? '#555' : '#AAA'}
-                    autoFocus
+                    secureTextEntry
                 />
 
-                <View style={styles.modalActions}>
-                    <TouchableOpacity 
-                        style={styles.modalButttonCancel} 
-                        onPress={() => setIsEditModalVisible(false)}
-                    >
-                        <Text style={{ color: isDark ? '#AAA' : '#666' }}>Annuler</Text>
-                    </TouchableOpacity>
+                <Text style={[styles.inputLabel, { color: isDark ? '#CCC' : '#666' }]}>Nouveau mot de passe</Text>
+                <TextInput
+                    style={[
+                        styles.modalInput, 
+                        { 
+                            color: isDark ? '#FFF' : '#000',
+                            backgroundColor: isDark ? '#2C2C2E' : '#F5F5F5',
+                            borderColor: isDark ? '#3A3A3C' : '#E0E0E0'
+                        }
+                    ]}
+                    value={newPassword}
+                    onChangeText={setNewPassword}
+                    placeholder="••••••••"
+                    placeholderTextColor={isDark ? '#555' : '#AAA'}
+                    secureTextEntry
+                />
 
-                    <TouchableOpacity 
-                        style={styles.modalButtonSave} 
-                        onPress={handleSaveProfile}
+                <Text style={[styles.inputLabel, { color: isDark ? '#CCC' : '#666' }]}>Confirmer le mot de passe</Text>
+                <TextInput
+                    style={[
+                        styles.modalInput, 
+                        { 
+                            color: isDark ? '#FFF' : '#000',
+                            backgroundColor: isDark ? '#2C2C2E' : '#F5F5F5',
+                            borderColor: isDark ? '#3A3A3C' : '#E0E0E0'
+                        }
+                    ]}
+                    value={confirmPassword}
+                    onChangeText={setConfirmPassword}
+                    placeholder="••••••••"
+                    placeholderTextColor={isDark ? '#555' : '#AAA'}
+                    secureTextEntry
+                />
+
+                <TouchableOpacity 
+                    onPress={handleChangePassword}
+                    disabled={isChangingPassword}
+                    style={{ marginTop: 8 }}
+                >
+                    <LinearGradient
+                        colors={Colors.primary.gradient as [string, string, ...string[]]}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 0 }}
+                        style={[styles.modalButtonSave, { width: '100%', flex: 0, height: 50 }]} 
                     >
-                        <Text style={{ color: '#FFF', fontWeight: '600' }}>Enregistrer</Text>
+                        {isChangingPassword ? (
+                           <ActivityIndicator color="#FFF" />
+                        ) : (
+                           <Text style={{ color: '#FFF', fontWeight: '600', fontSize: 16 }}>Changer le mot de passe</Text>
+                        )}
+                    </LinearGradient>
+                </TouchableOpacity>
+            </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Security & Privacy Modal */}
+      <Modal
+        visible={isSecurityModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setIsSecurityModalVisible(false)}
+      >
+        <TouchableOpacity 
+            style={styles.modalOverlay} 
+            activeOpacity={1} 
+            onPress={() => setIsSecurityModalVisible(false)}
+        >
+            <TouchableOpacity 
+                activeOpacity={1} 
+                style={[styles.modalContent, { backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF' }]}
+            >
+                <View style={styles.modalHeader}>
+                    <Text style={[styles.modalTitle, { color: isDark ? '#FFF' : '#000' }]}>Sécurité et Confidentialité</Text>
+                    <TouchableOpacity onPress={() => setIsSecurityModalVisible(false)}>
+                        <Ionicons name="close" size={24} color={isDark ? '#AAA' : '#666'} />
                     </TouchableOpacity>
                 </View>
+
+                {renderSettingItem(
+                   'trash-outline',
+                   'Effacer l\'historique',
+                   '',
+                   handleClearHistory,
+                   Colors.semantic.error
+                )}
+
+                <View style={[styles.separator, { backgroundColor: isDark ? Colors.dark.surface : Colors.neutral.gray[200], marginLeft: 0 }]} />
+
+                {renderSettingItem(
+                   'download-outline',
+                   'Télécharger mes données',
+                   '',
+                   () => Alert.alert("Bientôt disponible", "Cette fonctionnalité arrive prochainement.")
+                )}
+
+                <View style={[styles.separator, { backgroundColor: isDark ? Colors.dark.surface : Colors.neutral.gray[200], marginLeft: 0 }]} />
+
+                <TouchableOpacity 
+                   style={[styles.deleteAccountBtn, { marginTop: 24 }]}
+                   onPress={handleDeleteAccount}
+                >
+                   <Text style={styles.deleteAccountText}>Supprimer le compte</Text>
+                </TouchableOpacity>
+
+                <Text style={[styles.infoText, { color: isDark ? Colors.neutral.gray[500] : Colors.neutral.gray[400] }]}>
+                   La suppression de votre compte est définitive et entraînera la perte de tout votre historique et vos paramètres.
+                </Text>
             </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
@@ -740,5 +927,29 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     flex: 1,
     alignItems: 'center',
+    justifyContent: 'center',
   },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  deleteAccountBtn: {
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 59, 48, 0.1)',
+    alignItems: 'center',
+  },
+  deleteAccountText: {
+    color: Colors.semantic.error,
+    fontWeight: '700',
+    fontSize: 16,
+  },
+  infoText: {
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 12,
+    lineHeight: 18,
+  }
 });

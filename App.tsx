@@ -4,11 +4,16 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, StatusBar } from 'react-native';
+import { View, StyleSheet, StatusBar, Alert } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
-import * as SplashScreenExpo from 'expo-splash-screen';
+import * as expoSplashScreen from 'expo-splash-screen';
+import * as Google from 'expo-auth-session/providers/google';
+import * as WebBrowser from 'expo-web-browser';
+import * as AuthSession from 'expo-auth-session';
+
+WebBrowser.maybeCompleteAuthSession();
 
 import { AppProvider, useApp } from './src/contexts/AppContext';
 import { User } from './src/types';
@@ -24,7 +29,7 @@ import PaywallScreen from './src/screens/PaywallScreen';
 import NewsSuggestionsScreen from './src/screens/NewsSuggestionsScreen';
 
 // Prevent native splash screen from auto-hiding
-SplashScreenExpo.preventAutoHideAsync();
+expoSplashScreen.preventAutoHideAsync();
 
 type AppScreen = 
   | 'splash'
@@ -48,11 +53,63 @@ function AppContent() {
   const [emailAuthMode, setEmailAuthMode] = useState<'login' | 'signup'>('signup');
   const [isSplashAnimationDone, setIsSplashAnimationDone] = useState(false);
 
+  // Google Auth Hook
+  console.log('Google Client IDs:', {
+    ios: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+    web: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID
+  });
+
+  const redirectUri = AuthSession.makeRedirectUri({
+    scheme: 'facts-app',
+  });
+
+  const [request, googleResponse, promptAsync] = Google.useAuthRequest({
+    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+    redirectUri,
+  });
+
+  // Handle Google Auth Response
+  useEffect(() => {
+    if (googleResponse?.type === 'success') {
+      const { authentication } = googleResponse;
+      handleGoogleAuthSuccess(authentication?.accessToken);
+    }
+  }, [googleResponse]);
+
+  const handleGoogleAuthSuccess = async (accessToken?: string) => {
+    if (!accessToken) return;
+
+    try {
+      // Fetch user info from Google API
+      const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const googleUser = await response.json();
+
+      if (googleUser.email) {
+        const { user } = await ApiService.socialLogin({
+          email: googleUser.email,
+          displayName: googleUser.name,
+          photoUrl: googleUser.picture,
+          provider: 'google',
+          providerId: googleUser.sub,
+        });
+
+        dispatch({ type: 'SET_USER', payload: user });
+        await completeOnboarding();
+        setCurrentScreen('home');
+      }
+    } catch (error) {
+      console.error('Google User Info Fetch Error:', error);
+      Alert.alert('Erreur', 'Impossible de récupérer les informations Google.');
+    }
+  };
+
   // Hide native splash when app is ready and init RevenueCat
   useEffect(() => {
     PurchaseService.init();
     if (!state.isLoading) {
-      SplashScreenExpo.hideAsync();
+      expoSplashScreen.hideAsync();
     }
   }, [state.isLoading]);
 
@@ -69,6 +126,17 @@ function AppContent() {
     }
   }, [state.isLoading, isSplashAnimationDone, currentScreen, state.isOnboarded, state.user]);
 
+  // Handle auto-redirect when user logs out or session expires
+  useEffect(() => {
+    if (!state.isLoading && isSplashAnimationDone) {
+      const protectedScreens: AppScreen[] = ['home', 'result', 'history', 'profile', 'paywall', 'newsSuggestions'];
+      
+      if (!state.user && protectedScreens.includes(currentScreen)) {
+        setCurrentScreen('auth');
+      }
+    }
+  }, [state.user, state.isLoading, isSplashAnimationDone, currentScreen]);
+
   // Handle splash screen finish
   const handleSplashFinish = () => {
     setIsSplashAnimationDone(true);
@@ -81,43 +149,28 @@ function AppContent() {
 
   // Handle auth options
   const handleContinueWithApple = async () => {
-    // Mimic API login response
-    const mockUser: User = { 
-      id: 'apple-user-' + Date.now(),
-      email: 'user@apple.com',
-      displayName: 'Utilisateur Apple',
-      createdAt: new Date(),
-      factChecksCount: 0,
-      isPremium: false,
-    };
-    const mockToken = 'mock-apple-token-' + Date.now();
+    try {
+      // For now, we use a consistent mock identity but get a REAL token from the backend
+      const { user } = await ApiService.socialLogin({
+        email: 'user@apple.com',
+        displayName: 'Utilisateur Apple',
+        provider: 'apple',
+        providerId: 'apple-mock-id-123'
+      });
 
-    await setUser(mockUser); // Saves to storage and context
-    ApiService.setToken(mockToken);
-    await Storage.saveAuthToken(mockToken);
-    
-    await completeOnboarding();
-    setCurrentScreen('home');
+      dispatch({ type: 'SET_USER', payload: user });
+      await completeOnboarding();
+      setCurrentScreen('home');
+    } catch (error) {
+      console.error('Apple login failed:', error);
+      // fallback in case backend is down or something
+    }
   };
 
   const handleContinueWithGoogle = async () => {
-    // Mimic API login response
-    const mockUser: User = { 
-      id: 'google-user-' + Date.now(),
-      email: 'user@gmail.com',
-      displayName: 'Utilisateur Google',
-      createdAt: new Date(),
-      factChecksCount: 0,
-      isPremium: false,
-    };
-    const mockToken = 'mock-google-token-' + Date.now();
-
-    await setUser(mockUser); // Saves to storage and context
-    ApiService.setToken(mockToken);
-    await Storage.saveAuthToken(mockToken);
-
-    await completeOnboarding();
-    setCurrentScreen('home');
+    console.log('--- DEBUG GOOGLE AUTH ---');
+    console.log('Redirect URI sent to Google:', redirectUri);
+    promptAsync();
   };
 
   const handleContinueWithEmail = () => {

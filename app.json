@@ -2,6 +2,7 @@
   "expo": {
     "name": "FACTS",
     "slug": "facts",
+    "scheme": "facts-app",
     "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -18,7 +19,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.finea.facts",
-      "buildNumber": "2",
+      "buildNumber": "3",
       "infoPlist": {
         "NSCameraUsageDescription": "FACTS utilise la caméra pour capturer des images à vérifier.",
         "NSPhotoLibraryUsageDescription": "FACTS accède à votre galerie pour sélectionner des images à vérifier.",
@@ -31,7 +32,7 @@
         "backgroundColor": "#000000"
       },
       "package": "com.finea.facts",
-      "versionCode": 1,
+      "versionCode": 3,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
@@ -50,7 +51,8 @@
           "cameraPermission": "FACTS utilise la caméra pour capturer des images à vérifier."
         }
       ],
-      "expo-asset"
+      "expo-asset",
+      "expo-build-properties"
     ],
     "extra": {
       "eas": {

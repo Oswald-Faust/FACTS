@@ -34,76 +34,69 @@ export default function SourceCard({ source, index }: SourceCardProps) {
     }
   };
 
-  const getTrustColor = () => {
-    const score = source.trustScore || 70;
-    if (score >= 80) return Colors.verdict.true;
-    if (score >= 60) return Colors.semantic.warning;
-    return Colors.verdict.false;
-  };
+  const showDomain = source.domain && !source.domain.includes('vertexaisearch');
+  // Use snippet as description, but clean it if it's too generic
+  const description = source.snippet && 
+                     !source.snippet.includes('Source vérifiée') && 
+                     !source.snippet.includes('Google Search') ? source.snippet : null;
 
   return (
     <Animated.View entering={FadeInRight.delay(index * 100).springify()}>
       <TouchableOpacity
         onPress={handlePress}
-        activeOpacity={0.7}
+        activeOpacity={0.8}
         style={[
           styles.container,
           {
-            backgroundColor: isDark ? Colors.dark.card : Colors.light.card,
-            borderColor: isDark ? Colors.dark.surface : Colors.neutral.gray[200],
+            backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(255, 255, 255, 0.8)',
+            borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
           },
-          Shadows.sm,
         ]}
       >
-        <View style={styles.header}>
-          <View style={[styles.domainBadge, { backgroundColor: Colors.primary.main + '20' }]}>
-            <Ionicons name="globe-outline" size={14} color={Colors.primary.main} />
-            <Text style={[styles.domain, { color: Colors.primary.main }]}>
-              {source.domain}
-            </Text>
-          </View>
-          {source.trustScore && (
-            <View style={[styles.trustBadge, { backgroundColor: getTrustColor() + '20' }]}>
-              <Text style={[styles.trustScore, { color: getTrustColor() }]}>
-                {source.trustScore}%
+        <View style={styles.topInfo}>
+          {showDomain && (
+            <View style={[styles.domainBadge, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]}>
+              <Text style={[styles.domainText, { color: isDark ? Colors.neutral.gray[400] : Colors.neutral.gray[600] }]}>
+                {source.domain}
               </Text>
             </View>
           )}
+          <View style={[styles.iconContainer, { backgroundColor: Colors.primary.main + '15' }]}>
+            <Ionicons name="link" size={14} color={Colors.primary.main} />
+          </View>
         </View>
         
-        <Text 
-          style={[
-            styles.title,
-            { color: isDark ? Colors.neutral.white : Colors.neutral.black }
-          ]}
-          numberOfLines={2}
-        >
-          {source.title}
-        </Text>
-        
-        {source.snippet && (
+        <View style={styles.content}>
           <Text 
             style={[
-              styles.snippet,
-              { color: isDark ? Colors.neutral.gray[400] : Colors.neutral.gray[600] }
+              styles.title,
+              { color: isDark ? Colors.neutral.white : Colors.neutral.black }
             ]}
             numberOfLines={2}
           >
-            {source.snippet}
+            {source.title || 'Source vérifiée'}
           </Text>
-        )}
-
-        <View style={styles.footer}>
-          {source.publishedDate && (
-            <Text style={[styles.date, { color: isDark ? Colors.neutral.gray[500] : Colors.neutral.gray[500] }]}>
-              {source.publishedDate}
+          
+          {description && (
+            <Text 
+              style={[
+                styles.snippet,
+                { color: isDark ? Colors.neutral.gray[400] : Colors.neutral.gray[500] }
+              ]}
+              numberOfLines={2}
+            >
+              {description}
             </Text>
           )}
-          <Ionicons 
-            name="open-outline" 
-            size={16} 
-            color={isDark ? Colors.neutral.gray[500] : Colors.neutral.gray[400]} 
-          />
+        </View>
+        
+        <View style={styles.footer}>
+          <View style={styles.actionLink}>
+            <Text style={[styles.actionText, { color: Colors.primary.main }]}>
+              Visiter le site
+            </Text>
+            <Ionicons name="arrow-forward" size={12} color={Colors.primary.main} />
+          </View>
         </View>
       </TouchableOpacity>
     </Animated.View>
@@ -112,50 +105,66 @@ export default function SourceCard({ source, index }: SourceCardProps) {
 
 const styles = StyleSheet.create({
   container: {
-    padding: Spacing.md,
-    borderRadius: BorderRadius.lg,
+    width: 280,
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.xl,
     borderWidth: 1,
-    gap: Spacing.sm,
+    gap: Spacing.md,
+    justifyContent: 'space-between',
+    minHeight: 180,
   },
-  header: {
+  topInfo: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
   domainBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
   },
-  domain: {
-    ...Typography.caption1,
-    fontWeight: '600',
-  },
-  trustBadge: {
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.sm,
-  },
-  trustScore: {
-    ...Typography.caption1,
+  domainText: {
+    ...Typography.caption2,
     fontWeight: '700',
+    fontSize: 10,
+    textTransform: 'uppercase',
+  },
+  iconContainer: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  content: {
+    gap: 6,
   },
   title: {
     ...Typography.headline,
+    fontSize: 16,
+    lineHeight: 22,
+    fontWeight: '700',
   },
   snippet: {
-    ...Typography.subheadline,
+    ...Typography.caption1,
+    lineHeight: 16,
+    fontStyle: 'italic',
   },
   footer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: Spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.05)',
+    paddingTop: Spacing.sm,
   },
-  date: {
-    ...Typography.caption2,
+  actionLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  actionText: {
+    ...Typography.caption1,
+    fontWeight: '800',
+    fontSize: 11,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
 });

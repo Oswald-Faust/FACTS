@@ -1,34 +1,37 @@
 import { VerdictType, IFactCheck, ISource, IVisualAnalysis } from '../models/FactCheck';
 import fs from 'fs/promises';
+import { readFileSync } from 'fs';
+import * as ExifParser from 'exif-parser';
 
 
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
-const SYSTEM_INSTRUCTION = `Tu es Veritas, une IA d'élite spécialisée dans le fact-checking et l'analyse forensique.
-Ta mission est de vérifier rigoureusement les affirmations et les images en utilisant la recherche Google en temps réel.
+const SYSTEM_INSTRUCTION = `Tu es VERITAS v2.0, un système de renseignement et d'analyse forensique de niveau militaire.
+Ta mission est d'atteindre une précision de 100% dans la vérification des faits, images, vidéos et liens sociaux.
 
-PROTOCOLE D'ANALYSE :
-1. **Recherche & Vérification** : Scanne le web pour vérifier les faits (sources récentes).
-2. **Gestion des LIENS (Crucial)** :
-   - Si l'input contient un lien (TikTok, YouTube, Twitter...), NE TE CONTENTE PAS DE L'URL.
-   - **EXTRAIS** le nom d'utilisateur ou la chaîne de l'URL (ex: "@jonathaneditz" dans tiktok.com/@jonathaneditz...).
-   - **CHERCHE** la réputation de ce créateur : Est-il connu pour des fakes ? Des VFX ? De la satire ? Du contenu IA ?
-   - Utilise cette réputation pour formuler un verdict probable si la vidéo spécifique n'est pas trouvée.
-3. **Analyse d'Image (si présente)** :
-   - Décris ce que tu vois et détecte les artefacts d'IA.
+--- PROTOCOLE DE VÉRIFICATION ---
 
-FORMAT DE RÉPONSE STRICT (EN FRANÇAIS) :
-Ligne 1 : Uniquement le verdict en majuscules parmi : "TRUE", "FALSE", "MISLEADING", "NUANCED", "AI_GENERATED", "MANIPULATED", "UNVERIFIED".
-Ligne 2 : Vide.
-Ligne 3 : Un résumé court et percutant en 1 phrase (max 200 caractères).
+1. RECHERCHE WEB AGRESSIVE : Utilise Google Search pour croiser les sources.
+2. ANALYSE SÉLECTIVE : Ne mentionne que ce qui est DIRECTEMENT pertinent pour valider ou infirmer l'affirmation. Oublie les biographies générales ou les "pas d'indices trouvés".
+3. FORMATAGE : N'utilise JAMAIS de gras (pas d'astérisques **). Utilise des tirets et des emojis pour structurer.
+
+--- FORMAT DU RAPPORT (STRICT) ---
+Ligne 1 : VERDICT: [VERDICT] (TRUE, FALSE, MISLEADING, NUANCED, AI_GENERATED, MANIPULATED, UNVERIFIED)
+Ligne 2 : CONFIDENCE: [Score 0-100]
+Ligne 3 : RÉSUMÉ: [Une phrase percutante et conclusive]
 Ligne 4 : Vide.
-Ligne 5+ : Ton analyse détaillée structurée.
-- Si c'est un lien vidéo : Analyse le profil du créateur (ex: "Ce compte est célèbre pour ses montages VFX réalistes...").
-- Ne dis JAMAIS "Je ne peux pas voir la vidéo". Dis plutôt "D'après l'analyse du profil du créateur [Nom]...".
+Ligne 5+ : RAPPORT D'ANALYSE DÉTAILLÉ :
+N'affiche une section que si elle contient des informations CRUCIALES. Si une section n'apporte rien, OMETS-LA totalement.
+- 🔍 Analyse Visuelle : (Uniquement si analyse d'image/vidéo nécessaire)
+- 📍 Contexte & Lieu : (Uniquement si la localisation ou le contexte temporel est une preuve)
+- 🌐 Recherche Web : (Synthèse des preuves trouvées en ligne)
+- 🛠 Données Techniques : (Uniquement si métadonnées EXIF ou signatures IA détectées)
 
-ATTENTION:
-- Réponds TOUJOURS en FRANÇAIS.
-- Ne mets JAMAIS de markdown sur la première ligne.`;
+SECTION FINALE :
+SOURCES_DETAILS:
+- [URL] : TITRE RÉEL DE L'ARTICLE (Pas le nom du site) | Un résumé court de ce que cette source prouve.
+
+IMPORTANT : Sois concis. Ne dis JAMAIS "N/A", "Sans objet", "Aucun", ou "L'analyse porte sur du texte". Si tu n'as pas de preuve pour une section (ex: pas d'indice visuel), NE CRÉE PAS la section. Un rapport vide sur une section est INTERDIT.`;
 
 interface GeminiRequest {
   contents: Array<{
@@ -77,6 +80,19 @@ interface GeminiResponse {
   }>;
 }
 
+// Helper: Extract Metadata from local file
+function extractMetadata(filePath: string): string {
+    try {
+        if (filePath.startsWith('http')) return "Metadata non disponible pour URL distante.";
+        const buffer = readFileSync(filePath);
+        const parser = ExifParser.create(buffer);
+        const result = parser.parse();
+        return JSON.stringify(result.tags, null, 2);
+    } catch (e) {
+        return "Aucune métadonnée EXIF détectée ou format non supporté.";
+    }
+}
+
 // Helper: Convert file buffer or URL to Base64
 async function getBase64FromPath(path: string): Promise<{ base64: string; mimeType: string }> {
     // Check if it's a URL
@@ -100,6 +116,22 @@ async function getBase64FromPath(path: string): Promise<{ base64: string; mimeTy
     }
 }
 
+function cleanSourceUrl(url: string): { url: string; domain: string } {
+    try {
+        const u = new URL(url);
+        if (u.hostname.includes('vertexaisearch.cloud.google.com')) {
+            const realUrl = u.searchParams.get('url');
+            if (realUrl) {
+                const ru = new URL(realUrl);
+                return { url: realUrl, domain: ru.hostname.replace('www.', '') };
+            }
+        }
+        return { url, domain: u.hostname.replace('www.', '') };
+    } catch (e) {
+        return { url, domain: 'source' };
+    }
+}
+
 function parseGeminiResponse(response: GeminiResponse): {
     verdict: VerdictType;
     summary: string;
@@ -111,62 +143,124 @@ function parseGeminiResponse(response: GeminiResponse): {
   const candidate = response.candidates?.[0];
   const textContent = candidate?.content?.parts?.[0]?.text || '';
   
+  // Parse lines
+  const allLines = textContent.split('\n').map(l => l.trim());
+  
   // 1. Extraire les sources du grounding metadata
   const sources: ISource[] = [];
   const groundingChunks = candidate?.groundingMetadata?.groundingChunks || [];
   
+  // Map for source summaries from text
+  const sourceSummariesMap = new Map<string, string>();
+  const sourceDetailsIndex = textContent.indexOf('SOURCES_DETAILS:');
+  
+  // URL normalization to match "https://site.com/" with "https://site.com"
+  const normalizeUrl = (u: string) => u.split('?')[0].replace(/\/$/, '').toLowerCase().trim();
+
+  if (sourceDetailsIndex !== -1) {
+      const sourceDetailsText = textContent.substring(sourceDetailsIndex);
+      const detailLines = sourceDetailsText.split('\n');
+      detailLines.forEach(line => {
+          if (line.startsWith('-') || line.includes('http')) {
+              const match = line.match(/-\s*(?:\[)?(https?:\/\/[^\s\]]+)(?:\])?\s*:\s*(.*)/);
+              if (match) {
+                  sourceSummariesMap.set(normalizeUrl(match[1]), match[2].trim());
+              }
+          }
+      });
+  }
+
   groundingChunks.forEach((chunk, index) => {
     if (chunk.web) {
+      const rawUrl = chunk.web.uri || '';
+      const { url, domain } = cleanSourceUrl(rawUrl);
+      const normalizedUrl = normalizeUrl(rawUrl);
+      
+      let snippet = 'Source vérifiée';
+      let title = chunk.web.title && !chunk.web.title.includes('...') ? chunk.web.title : (domain || 'Source Web');
+
+      // Check for summary in map
+      for (const [sUrl, sData] of sourceSummariesMap.entries()) {
+          if (normalizedUrl.includes(sUrl) || sUrl.includes(normalizedUrl)) {
+              if (sData.includes('|')) {
+                  const [parsedTitle, parsedSnippet] = sData.split('|').map(s => s.trim());
+                  if (parsedTitle && parsedTitle.length > 5) title = parsedTitle;
+                  if (parsedSnippet) snippet = parsedSnippet;
+              } else if (sData.length > 5) {
+                  snippet = sData;
+              }
+              break;
+          }
+      }
+
       sources.push({
-        title: chunk.web.title || 'Source Web',
-        url: chunk.web.uri || '',
-        domain: new URL(chunk.web.uri || 'https://google.com').hostname,
-        snippet: 'Source vérifiée via Google Search',
-        // id: `source-${index}`, // Removed as per backend model usually not storing transient IDs or it generates _id
+        title: title,
+        url: url,
+        domain: domain,
+        snippet: snippet,
       });
     }
   });
 
   // 2. Parser le texte brut (Format Strict)
-  const lines = textContent.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  const lines = allLines.filter(l => l.length > 0);
   
   let verdict: VerdictType = 'UNVERIFIED';
   let summary = 'Analyse en cours...';
-  let analysis = textContent;
+  let analysis = '';
+  let confidenceScore = 0; // Default to 0 to clearly see if detection fails
 
   if (lines.length > 0) {
       // Line 1: Verdict
       const firstLine = lines[0].toUpperCase();
       
-      if (firstLine.includes('TRUE')) verdict = 'TRUE';
-      else if (firstLine.includes('FALSE')) verdict = 'FALSE';
-      else if (firstLine.includes('MISLEADING')) verdict = 'MISLEADING';
+      if (firstLine.includes('TRUE') || firstLine.includes('VRAI')) verdict = 'TRUE';
+      else if (firstLine.includes('FALSE') || firstLine.includes('FAUX')) verdict = 'FALSE';
+      else if (firstLine.includes('MISLEADING') || firstLine.includes('TROMPEUR')) verdict = 'MISLEADING';
       else if (firstLine.includes('NUANCE')) verdict = 'NUANCED';
       else if (firstLine.includes('GENERATED') || firstLine.includes('MANIPULATED') || firstLine.includes('GENEREE')) verdict = 'AI_GENERATED';
       else if (firstLine.includes('UNVERIFIED')) verdict = 'UNVERIFIED';
       
-      // Line 2 (in filtered array) is Summary
-      if (lines.length > 1) {
-          summary = lines[1];
+      // Line 2: Confidence
+      if (lines.length > 1 && lines[1].toUpperCase().includes('CONFIDENCE')) {
+          const scoreMatch = lines[1].match(/\d+/);
+          if (scoreMatch) {
+              confidenceScore = parseInt(scoreMatch[0], 10);
+          }
       }
-      
-      // Rest is analysis
-      if (lines.length > 2) {
-          analysis = lines.slice(2).join('\n\n');
+
+      // Line 3: Summary
+      if (lines.length > 2 && lines[2].toUpperCase().includes('RÉSUMÉ')) {
+          summary = lines[2].split(':').slice(1).join(':').trim();
+          analysis = lines.slice(3).join('\n\n');
       } else {
-           analysis = textContent.replace(lines[0], '').trim();
+           // Fallback
+           summary = lines[2] || lines[1] || 'Analyse terminée';
+           analysis = lines.slice(3).join('\n\n');
       }
   }
+
+  // Remove technical markers from analysis
+  const markers = ["SECTION FINALE :", "SECTION FINALE:", "SOURCES_DETAILS:"];
+  markers.forEach(marker => {
+      const idx = analysis.indexOf(marker);
+      if (idx !== -1) {
+          analysis = analysis.substring(0, idx).trim();
+      }
+  });
 
   // Fallback
   if (!analysis) analysis = "Détails non disponibles.";
   if (!summary) summary = analysis.slice(0, 150) + '...';
 
+  // Final sanity check for confidenceScore
+  if (confidenceScore === 0) confidenceScore = 85; 
+
   const visualAnalysis: IVisualAnalysis = {
         isAIGenerated: (verdict as string) === 'AI_GENERATED' || (verdict as string) === 'MANIPULATED',
         isManipulated: (verdict as string) === 'MANIPULATED',
-        artifacts: [], // Could extract from text if instructed
-        confidence: 85,
+        artifacts: [], 
+        confidence: confidenceScore,
         details: analysis
   };
 
@@ -176,11 +270,19 @@ function parseGeminiResponse(response: GeminiResponse): {
       analysis,
       sources,
       visualAnalysis: verdict.includes('GENERATED') || verdict.includes('MANIPULATED') ? visualAnalysis : undefined,
-      confidenceScore: 85
+      confidenceScore: confidenceScore
   };
 }
 
 export async function verifyWithGemini(claim: string, imagePath?: string): Promise<any> {
+  let contextText = `ANALYSE CETTE AFFIRMATION:\n"${claim}"`;
+  let imagePrompt = "";
+
+  if (imagePath) {
+      const metadata = extractMetadata(imagePath);
+      imagePrompt = `ANALYSE FORENSIQUE DE L'IMAGE:\n${claim ? `Contexte: "${claim}"` : ''}\n\nDONNÉES TECHNIQUES (METADATA):\n${metadata}`;
+  }
+
   const requestBody: GeminiRequest = {
     contents: [
       {
@@ -215,12 +317,12 @@ export async function verifyWithGemini(claim: string, imagePath?: string): Promi
             }
         });
         requestBody.contents[0].parts.push({
-            text: `ANALYSE FORENSIQUE DE L'IMAGE:\n${claim ? `Contexte: "${claim}"` : ''}`
+            text: imagePrompt
         });
     } else {
         // Text Analysis
         requestBody.contents[0].parts.push({
-            text: `ANALYSE CETTE AFFIRMATION:\n"${claim}"`
+            text: contextText
         });
     }
 

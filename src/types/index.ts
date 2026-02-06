@@ -53,7 +53,8 @@ export interface User {
   isPremium: boolean;
   plan?: 'free' | 'monthly' | 'yearly';
   subscriptionStatus?: 'active' | 'past_due' | 'canceled' | 'none';
-  premiumExpiresAt?: Date | string; // Dates often come as strings from JSON API
+  premiumExpiresAt?: Date | string; 
+  provider?: 'email' | 'google' | 'apple';
 }
 
 export interface HistoryItem {

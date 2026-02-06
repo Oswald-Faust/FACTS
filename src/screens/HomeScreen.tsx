@@ -144,6 +144,46 @@ export default function HomeScreen({
     setImageContext('');
   };
 
+  // Tools expansion animation
+  const [isToolsExpanded, setIsToolsExpanded] = useState(false);
+  const expansion = useSharedValue(0);
+
+  const toggleExpanded = () => {
+    const next = !isToolsExpanded;
+    setIsToolsExpanded(next);
+    expansion.value = withSpring(next ? 1 : 0, {
+      damping: 15,
+      stiffness: 100
+    });
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const action1Style = useAnimatedStyle(() => ({
+    transform: [{ translateX: withTiming(expansion.value * 44, { duration: 250 }) }],
+    opacity: withTiming(expansion.value, { duration: 200 }),
+    scale: withSpring(expansion.value),
+  }));
+
+  const action2Style = useAnimatedStyle(() => ({
+    transform: [{ translateX: withTiming(expansion.value * 88, { duration: 250 }) }],
+    opacity: withTiming(expansion.value, { duration: 200 }),
+    scale: withSpring(expansion.value),
+  }));
+
+  const action3Style = useAnimatedStyle(() => ({
+    transform: [{ translateX: withTiming(expansion.value * 132, { duration: 250 }) }],
+    opacity: withTiming(expansion.value, { duration: 200 }),
+    scale: withSpring(expansion.value),
+  }));
+
+  const plusRotateStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: withTiming(`${expansion.value * 135}deg`) }],
+  }));
+
+  const expandedContainerStyle = useAnimatedStyle(() => ({
+    width: withTiming(expansion.value * 140 + 40, { duration: 250 }),
+  }));
+
   const handleVerify = async () => {
       if (!claim.trim() && !imageUri) return;
   
@@ -258,17 +298,40 @@ export default function HomeScreen({
               />
 
               <View style={styles.cardActions}>
-                 <View style={styles.actionLeft}>
-                    <TouchableOpacity onPress={pickImage} style={styles.actionButton}>
-                       <Ionicons name="image-outline" size={22} color={Colors.primary.main} />
+                 <Animated.View style={[styles.actionLeft, expandedContainerStyle]}>
+                    <TouchableOpacity onPress={toggleExpanded} activeOpacity={0.7} style={styles.plusButton}>
+                       <Animated.View style={plusRotateStyle}>
+                         <Ionicons name="add" size={24} color={isDark ? Colors.neutral.white : Colors.neutral.black} />
+                       </Animated.View>
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={takePhoto} style={styles.actionButton}>
-                       <Ionicons name="camera-outline" size={22} color={Colors.primary.main} />
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => setIsLinkModalVisible(true)} style={styles.actionButton}>
-                       <Ionicons name="link-outline" size={22} color={Colors.primary.main} />
-                    </TouchableOpacity>
-                 </View>
+
+                    <Animated.View 
+                      style={[styles.expandedOptions, action1Style]}
+                      pointerEvents={isToolsExpanded ? 'auto' : 'none'}
+                    >
+                       <TouchableOpacity onPress={pickImage} style={[styles.optionBadge, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.04)' }]}>
+                          <Ionicons name="image-outline" size={18} color={Colors.primary.main} />
+                       </TouchableOpacity>
+                    </Animated.View>
+
+                    <Animated.View 
+                      style={[styles.expandedOptions, action2Style]}
+                      pointerEvents={isToolsExpanded ? 'auto' : 'none'}
+                    >
+                       <TouchableOpacity onPress={takePhoto} style={[styles.optionBadge, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.04)' }]}>
+                          <Ionicons name="camera-outline" size={18} color={Colors.primary.main} />
+                       </TouchableOpacity>
+                    </Animated.View>
+
+                    <Animated.View 
+                      style={[styles.expandedOptions, action3Style]}
+                      pointerEvents={isToolsExpanded ? 'auto' : 'none'}
+                    >
+                       <TouchableOpacity onPress={() => setIsLinkModalVisible(true)} style={[styles.optionBadge, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.04)' }]}>
+                          <Ionicons name="link-outline" size={18} color={Colors.primary.main} />
+                       </TouchableOpacity>
+                    </Animated.View>
+                 </Animated.View>
 
                  <TouchableOpacity 
                     style={[
@@ -434,11 +497,30 @@ const styles = StyleSheet.create({
   },
   actionLeft: {
     flexDirection: 'row',
-    gap: Spacing.md,
+    alignItems: 'center',
+    position: 'relative',
+    height: 44,
+    backgroundColor: 'transparent',
   },
-  actionButton: {
-    padding: Spacing.xs,
-    opacity: 0.6,
+  plusButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+  expandedOptions: {
+    position: 'absolute',
+    left: 0,
+    zIndex: 5,
+  },
+  optionBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   verifyBtn: {
     width: 44,

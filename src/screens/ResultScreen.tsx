@@ -17,11 +17,20 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import Svg, { Circle as SvgCircle } from 'react-native-svg';
 import Animated, {
   FadeIn,
   FadeInDown,
   FadeInUp,
+  useSharedValue,
+  useAnimatedProps,
+  withTiming,
+  withDelay,
+  useDerivedValue,
 } from 'react-native-reanimated';
+
+const AnimatedCircle = Animated.createAnimatedComponent(SvgCircle);
+
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../constants/theme';
 import { useApp, useTheme } from '../contexts/AppContext';
@@ -45,9 +54,32 @@ export default function ResultScreen({ onBack, onNewCheck }: ResultScreenProps) 
   // Get fact check data
   const factCheck = currentFactCheck || (history.length > 0 ? history[0].factCheck : null);
 
-  console.log('ResultScreen rendering, factCheck:', factCheck ? 'EXISTS' : 'NULL');
+  // Animation values
+  const progress = useSharedValue(0);
+  const RADIUS = 70;
+  const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
+
+  useEffect(() => {
+    if (factCheck) {
+      // Small delay to let the screen mount
+      progress.value = withDelay(500, withTiming(factCheck.confidenceScore / 100, { duration: 1500 }));
+    }
+  }, [factCheck]);
+
+  const animatedProps = useAnimatedProps(() => {
+    const strokeDashoffset = CIRCUMFERENCE * (1 - progress.value);
+    return {
+      strokeDashoffset,
+    };
+  });
+
+  // Derived value for the counter text
+  const counterText = useDerivedValue(() => {
+    return `${Math.round(progress.value * 100)}%`;
+  });
 
   if (!factCheck) {
+    // ... rest of empty state remains same (simplified for replace_file_content)
     return (
       <View style={[styles.emptyContainer, { backgroundColor: isDark ? Colors.dark.background : Colors.light.background }]}>
         <LinearGradient
@@ -129,55 +161,75 @@ export default function ResultScreen({ onBack, onNewCheck }: ResultScreenProps) 
         contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 100 }]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Verdict Section - Simplified without complex animations */}
+        {/* Verdict Section with Animated Circular Progress */}
         <View style={styles.verdictSection}>
-          <View style={[
-            styles.verdictCircle,
-            {
-              backgroundColor: verdictData.color + '20',
-              borderColor: verdictData.color,
-            }
-          ]}>
-            <Ionicons
-              name={getVerdictIcon()}
-              size={80}
-              color={verdictData.color}
-            />
-          </View>
-          
-          <Text style={[styles.verdictLabel, { color: verdictData.color }]}>
-            {verdictData.label}
-          </Text>
-          
-          {/* Confidence Gauge */}
-          <View style={styles.gaugeContainer}>
-            <View style={styles.gaugeHeader}>
-              <Text style={[styles.gaugeLabel, { color: isDark ? Colors.neutral.gray[400] : Colors.neutral.gray[600] }]}>
-                Indice de confiance
-              </Text>
-              <Text style={[styles.gaugeValue, { color: verdictData.color }]}>
-                {confidenceScore}%
-              </Text>
-            </View>
+          <Animated.View 
+            entering={FadeInUp.delay(200).springify()}
+            style={styles.circleContainer}
+          >
+            <Svg width={160} height={160} style={styles.svg}>
+              {/* Background Circle */}
+              <SvgCircle
+                cx="80"
+                cy="80"
+                r={RADIUS}
+                stroke={isDark ? Colors.dark.surface : Colors.neutral.gray[200]}
+                strokeWidth="8"
+                fill="transparent"
+              />
+              {/* Animated Progress Circle */}
+              <AnimatedCircle
+                cx="80"
+                cy="80"
+                r={RADIUS}
+                stroke={verdictData.color}
+                strokeWidth="8"
+                fill="transparent"
+                strokeDasharray={CIRCUMFERENCE}
+                animatedProps={animatedProps}
+                strokeLinecap="round"
+                transform="rotate(-90 80 80)"
+              />
+            </Svg>
+            
             <View style={[
-              styles.gaugeTrack,
-              { backgroundColor: isDark ? Colors.dark.surface : Colors.neutral.gray[200] }
+              styles.innerCircle,
+              { backgroundColor: verdictData.color + '15' }
             ]}>
-              <View 
-                style={[
-                  styles.gaugeFill,
-                  { 
-                    backgroundColor: verdictData.color,
-                    width: `${confidenceScore}%`,
-                  }
-                ]} 
+              <Ionicons
+                name={getVerdictIcon()}
+                size={70}
+                color={verdictData.color}
               />
             </View>
-          </View>
+          </Animated.View>
           
-          <Text style={[styles.verdictDescription, { color: isDark ? Colors.neutral.gray[400] : Colors.neutral.gray[600] }]}>
+          <Animated.Text 
+            entering={FadeIn.delay(400)}
+            style={[styles.verdictLabel, { color: verdictData.color }]}
+          >
+            {verdictData.label}
+          </Animated.Text>
+          
+          {/* Confidence Score Display */}
+          <Animated.View 
+            entering={FadeIn.delay(600)}
+            style={styles.scoreBadge}
+          >
+            <Text style={[styles.scoreText, { color: verdictData.color }]}>
+              {confidenceScore}%
+            </Text>
+            <Text style={[styles.scoreLabel, { color: isDark ? Colors.neutral.gray[400] : Colors.neutral.gray[600] }]}>
+              Confiance
+            </Text>
+          </Animated.View>
+          
+          <Animated.Text 
+            entering={FadeInUp.delay(800)}
+            style={[styles.verdictDescription, { color: isDark ? Colors.neutral.gray[400] : Colors.neutral.gray[600] }]}
+          >
             {verdictData.description}
-          </Text>
+          </Animated.Text>
         </View>
 
         {/* Claim Card */}
@@ -257,9 +309,55 @@ export default function ResultScreen({ onBack, onNewCheck }: ResultScreenProps) 
                 Analyse détaillée
               </Text>
             </View>
-            <Text style={[styles.cardContent, { color: isDark ? Colors.neutral.gray[300] : Colors.neutral.gray[700] }]}>
-              {analysis}
-            </Text>
+            <View style={styles.analysisContainer}>
+              {analysis.split('\n').filter(line => line.trim().length > 0).map((line, index) => {
+                const isBullet = line.trim().startsWith('-');
+                let cleanLine = isBullet ? line.trim().substring(1).trim() : line.trim();
+                
+                // Safety: remove all ** markers as they don't render well in the UI
+                cleanLine = cleanLine.replace(/\*\*/g, '');
+                
+                // Don't render technical markers or headers already in the card
+                const upperLine = cleanLine.toUpperCase();
+                if (upperLine.includes("RAPPORT D'ANALYSE DÉTAILLÉ")) return null;
+                if (upperLine.includes("SECTION FINALE")) return null;
+                if (upperLine.includes("SOURCES_DETAILS")) return null;
+                
+                // Hide lines that indicate lack of relevant info or generic placeholders
+                const isNoInfo = /\:\s*N\/?A/i.test(cleanLine) || 
+                                 cleanLine.trim().toUpperCase() === "N/A" ||
+                                 upperLine.includes("SANS OBJET") ||
+                                 upperLine.includes("AFFIRMATION TEXTUELLE") ||
+                                 upperLine.includes("AUCUN INDICE") ||
+                                 upperLine.includes("PAS D'INDICES");
+                
+                if (isNoInfo) return null;
+
+                // Split by first colon to bold the label
+                const colonIndex = cleanLine.indexOf(':');
+                const hasLabel = colonIndex !== -1 && colonIndex < 40; // Avoid splitting long sentences without real labels
+
+                return (
+                  <View key={`analysis-${index}`} style={isBullet ? styles.analysisBullet : styles.analysisText}>
+                    {isBullet && <View style={[styles.bulletPoint, { backgroundColor: Colors.primary.main }]} />}
+                    <Text style={[
+                      styles.cardContent, 
+                      { color: isDark ? Colors.neutral.gray[300] : Colors.neutral.gray[700] },
+                      isBullet && { flex: 1 }
+                    ]}>
+                      {hasLabel ? (
+                        <>
+                          <Text style={{ fontWeight: '700', color: isDark ? Colors.neutral.white : Colors.neutral.black }}>
+                            {cleanLine.substring(0, colonIndex + 1)}
+                          </Text>
+                          {cleanLine.substring(colonIndex + 1)}
+                        </>
+                      ) : cleanLine}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
           </GlassCard>
         )}
 
@@ -267,16 +365,27 @@ export default function ResultScreen({ onBack, onNewCheck }: ResultScreenProps) 
         {sources && sources.length > 0 && (
           <View style={styles.sourcesSection}>
             <View style={styles.sourcesHeader}>
-              <Ionicons name="link" size={20} color={Colors.primary.main} />
-              <Text style={[styles.cardTitle, { color: isDark ? Colors.neutral.white : Colors.neutral.black }]}>
-                Sources ({sources.length})
+              <View style={styles.sourcesTitleContainer}>
+                <Ionicons name="link" size={20} color={Colors.primary.main} />
+                <Text style={[styles.cardTitle, { color: isDark ? Colors.neutral.white : Colors.neutral.black }]}>
+                  Sources ({sources.length})
+                </Text>
+              </View>
+              <Text style={[styles.sourcesSubtitle, { color: isDark ? Colors.neutral.gray[500] : Colors.neutral.gray[500] }]}>
+                Balayez pour voir
               </Text>
             </View>
-            <View style={styles.sourcesList}>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.sourcesScrollContent}
+              snapToInterval={280 + Spacing.md}
+              decelerationRate="fast"
+            >
               {sources.map((source, index) => (
-                <SourceCard key={`source-${index}-${source.url?.slice(-10) || index}`} source={source} index={index} />
+                <SourceCard key={`source-${index}`} source={source} index={index} />
               ))}
-            </View>
+            </ScrollView>
           </View>
         )}
 
@@ -349,6 +458,40 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: Spacing.xl,
     gap: Spacing.md,
+  },
+  circleContainer: {
+    width: 160,
+    height: 160,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  svg: {
+    position: 'absolute',
+  },
+  innerCircle: {
+    width: 125,
+    height: 125,
+    borderRadius: 62.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scoreBadge: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.full,
+  },
+  scoreText: {
+    ...Typography.title2,
+    fontWeight: '800',
+  },
+  scoreLabel: {
+    ...Typography.caption1,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
   verdictCircle: {
     width: 140,
@@ -423,6 +566,25 @@ const styles = StyleSheet.create({
     ...Typography.body,
     lineHeight: 24,
   },
+  analysisContainer: {
+    gap: Spacing.sm,
+    marginTop: Spacing.xs,
+  },
+  analysisBullet: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.sm,
+    paddingVertical: 2,
+  },
+  analysisText: {
+    paddingVertical: 2,
+  },
+  bulletPoint: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginTop: 10,
+  },
   forensicGrid: {
     flexDirection: 'row',
     gap: Spacing.md,
@@ -446,15 +608,27 @@ const styles = StyleSheet.create({
     marginTop: Spacing.sm,
   },
   sourcesSection: {
-    gap: Spacing.sm,
+    gap: Spacing.md,
+    marginTop: Spacing.sm,
   },
   sourcesHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.xs,
+  },
+  sourcesTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: Spacing.sm,
   },
-  sourcesList: {
-    gap: Spacing.sm,
+  sourcesSubtitle: {
+    ...Typography.caption2,
+    opacity: 0.7,
+  },
+  sourcesScrollContent: {
+    paddingRight: Spacing.xl,
+    gap: Spacing.md,
   },
   metadata: {
     alignItems: 'center',
